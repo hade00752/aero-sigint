@@ -120,14 +120,17 @@ function toggleDetail(){
 }
 
 function switchTab(t){
-  document.getElementById('app').style.display=t==='live'?'flex':'none';
+  const app=document.getElementById('app');
+  if(app) app.style.display=t==='live'?'flex':'none';
   ['log','pattern'].forEach(v=>{
     const el=document.getElementById('view-'+v);
-    if(el)el.classList.toggle('hidden',t!==v);
+    if(el) el.classList.toggle('hidden',t!==v);
   });
-  document.querySelectorAll('.tab').forEach(el=>el.classList.toggle('active',el.dataset.tab===t));
-  if(t==='log')loadPlayback();
-  if(t==='pattern')loadHeatmap();
+  document.querySelectorAll('.tab').forEach(el=>{
+    el.classList.toggle('active',el.dataset.tab===t);
+  });
+  if(t==='log') loadPlayback();
+  if(t==='pattern') loadHeatmap();
 }
 
 // Waterfall

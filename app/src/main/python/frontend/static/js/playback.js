@@ -1,146 +1,79 @@
 'use strict';
-// playback.js — 24h event log + hourly heatmap
 
-// ── Tab switching ─────────────────────────────────────────────────
-function switchTab(tab) {
-  document.getElementById('app').style.display =
-    tab === 'live' ? 'flex' : 'none';
-  document.getElementById('view-playback').classList.toggle('hidden', tab !== 'playback');
-  document.getElementById('view-heatmap').classList.toggle('hidden', tab !== 'heatmap');
-
-  document.querySelectorAll('.tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.tab === tab);
-  });
-
-  if (tab === 'playback') loadPlayback();
-  if (tab === 'heatmap')  loadHeatmap();
-}
-
-// ── Playback timeline ─────────────────────────────────────────────
 async function loadPlayback() {
   const container = document.getElementById('pb-timeline');
-  const countEl   = document.getElementById('pb-count');
-  container.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:20px 0;text-align:center">Loading...</div>';
+  const countEl = document.getElementById('pb-count');
+  if(!container) return;
+  container.innerHTML = '<div style="color:rgba(120,160,220,.45);font-size:11px;padding:20px;text-align:center">Loading...</div>';
   try {
     const r = await fetch('/logs/events');
     if (!r.ok) throw new Error('no data');
     const events = await r.json();
-    countEl.textContent = `${events.length} events`;
-
+    if(countEl) countEl.textContent = events.length + ' events';
     if (events.length === 0) {
-      container.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:20px 0;text-align:center">No events in last 24h — environment has been clear.</div>';
+      container.innerHTML = '<div style="color:rgba(120,160,220,.45);font-size:12px;padding:20px;text-align:center">No events in last 24h — environment has been clear.</div>';
       return;
     }
-
-    // Render newest first
-    container.innerHTML = [...events].reverse().map(e => {
-      const ts   = new Date(e.timestamp_utc);
-      const time = ts.toISOString().slice(11,19) + ' UTC';
-      const date = ts.toISOString().slice(0,10);
-      const alerts = e.alerts ? e.alerts.split(' | ').filter(Boolean) : [];
-      const alertHtml = alerts.length
-        ? `<div style="margin-top:3px;font-size:9px;color:var(--text-dim)">${alerts[0]}</div>`
-        : '';
-      return `
-        <div class="pb-event ${e.status}">
-          <div class="pb-dot ${e.status}"></div>
-          <div>
-            <div class="pb-detail">${e.status} · ${date}</div>
-            <div class="pb-time">${time}</div>
-            ${alertHtml}
-          </div>
-          <div class="pb-scores">
-            J:${e.jam_score}%<br>
-            S:${e.spoof_score}%<br>
-            P:${e.probe_score}%
-          </div>
-        </div>`;
-    }).join('');
-  } catch {
-    container.innerHTML = '<div style="color:var(--text-dim);font-size:11px;padding:20px 0;text-align:center">Start the daemon to begin logging events.</div>';
+    container.innerHTML = events.reverse().map(e => `
+      <div class="pb-event ${e.status||''}">
+        <div class="pb-dot ${e.status||''}"></div>
+        <div>
+          <div style="font-size:11px;color:rgba(180,210,255,.7);margin-bottom:2px">${e.status||'EVENT'} · ${(e.ts||'').slice(0,10)}</div>
+          <div style="font-size:10px;color:rgba(120,160,220,.45)">${(e.ts||'').slice(11,19)} UTC</div>
+          <div style="font-size:11px;color:rgba(180,210,255,.7);margin-top:2px">${e.reason||e.alerts||''}</div>
+        </div>
+        <div class="pb-scores">J:${e.jam_score||0}%<br>S:${e.spoof_score||0}%<br>P:${e.probe_score||0}%</div>
+      </div>
+    `).join('');
+  } catch(err) {
+    container.innerHTML = '<div style="color:rgba(120,160,220,.45);font-size:12px;padding:20px;text-align:center">No events logged yet.</div>';
   }
 }
 
-// ── Heatmap — Rhythm of War ───────────────────────────────────────
 async function loadHeatmap() {
-  const canvas  = document.getElementById('heatmap-canvas');
-  const legend  = document.getElementById('heatmap-legend');
-  const ctx     = canvas.getContext('2d');
-  const W = canvas.width  = canvas.offsetWidth  * devicePixelRatio || 680;
-  const H = canvas.height = 120 * devicePixelRatio;
-
-  ctx.clearRect(0, 0, W, H);
-
-  let buckets;
+  const canvas = document.getElementById('heatmap-canvas');
+  const legend = document.getElementById('heatmap-legend');
+  if(!canvas) return;
   try {
     const r = await fetch('/logs/heatmap');
-    if (!r.ok) throw new Error();
-    buckets = await r.json();
-  } catch {
-    // Draw empty placeholder
-    ctx.fillStyle = 'rgba(255,255,255,.05)';
-    for (let h = 0; h < 24; h++) {
-      const x = (h / 24) * W;
-      const bw = W / 24 - 2;
-      ctx.fillRect(x + 1, 20, bw, H - 40);
+    if (!r.ok) throw new Error('no data');
+    const buckets = await r.json();
+    const max = Math.max(...buckets, 1);
+    canvas.width = canvas.offsetWidth * devicePixelRatio || 600;
+    canvas.height = 80 * devicePixelRatio;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const cw = W / 24;
+    ctx.clearRect(0,0,W,H);
+    buckets.forEach((v, i) => {
+      const intensity = v / max;
+      const r = Math.round(intensity * 255);
+      const b = Math.round((1-intensity) * 100);
+      ctx.fillStyle = v === 0
+        ? 'rgba(255,255,255,0.03)'
+        : `rgba(${r},${Math.round(intensity*80)},${b},${0.3+intensity*0.7})`;
+      ctx.fillRect(i*cw, 0, cw-1, H);
+      if(v > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = `${Math.max(8, 10*devicePixelRatio)}px monospace`;
+        ctx.fillText(v, i*cw + 2, H - 4);
+      }
+    });
+    if(legend) {
+      legend.innerHTML = '<span style="color:rgba(120,160,220,.45);font-size:9px;letter-spacing:.1em">00:00</span>' +
+        '<span style="color:rgba(120,160,220,.45);font-size:9px;letter-spacing:.1em">06:00</span>' +
+        '<span style="color:rgba(120,160,220,.45);font-size:9px;letter-spacing:.1em">12:00</span>' +
+        '<span style="color:rgba(120,160,220,.45);font-size:9px;letter-spacing:.1em">18:00</span>' +
+        '<span style="color:rgba(120,160,220,.45);font-size:9px;letter-spacing:.1em">23:00</span>';
+      legend.style.display = 'flex';
+      legend.style.justifyContent = 'space-between';
     }
-    legend.innerHTML = '<span>No log data yet — events will appear here once anomalies are detected</span>';
-    return;
-  }
-
-  const maxCount = Math.max(1, ...buckets.map(b => b.count));
-  const bw = W / 24;
-
-  buckets.forEach((b, h) => {
-    const x      = h * bw;
-    const fill   = b.count / maxCount;
-    const barH   = Math.max(4, fill * (H - 40));
-    const y      = H - 20 - barH;
-
-    // Color by worst status in that hour
-    let color;
-    if (b.max_status === 'CRITICAL')  color = `rgba(255,65,108,${0.3 + fill * 0.7})`;
-    else if (b.max_status === 'DISTURBED') color = `rgba(184,198,255,${0.2 + fill * 0.6})`;
-    else color = 'rgba(255,255,255,.06)';
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.roundRect(x + 2, y, bw - 4, barH, 3);
-    ctx.fill();
-
-    // Hour label
-    ctx.fillStyle = 'rgba(120,160,220,.5)';
-    ctx.font = `${10 * devicePixelRatio}px "Courier New"`;
-    ctx.textAlign = 'center';
-    if (h % 3 === 0) {
-      ctx.fillText(String(h).padStart(2,'0'), x + bw/2, H - 4);
+  } catch(err) {
+    if(canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(120,160,220,.45)';
+      ctx.font = '12px monospace';
+      ctx.fillText('No pattern data yet', 10, 30);
     }
-  });
-
-  // Highlight current hour
-  const nowH = new Date().getUTCHours();
-  ctx.strokeStyle = 'rgba(0,198,255,.5)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(nowH * bw + bw/2, 0);
-  ctx.lineTo(nowH * bw + bw/2, H - 20);
-  ctx.stroke();
-
-  // Pattern detection — find the peak hour
-  const peak = buckets.reduce((a,b) => b.count > a.count ? b : a, buckets[0]);
-  if (peak.count > 0) {
-    legend.innerHTML = `
-      <span style="color:var(--orb-a)">Peak activity: ${String(peak.hour).padStart(2,'0')}:00 UTC (${peak.count} events)</span>
-      <span>| Blue line = now</span>`;
-  } else {
-    legend.innerHTML = '<span>No anomalies recorded yet in this 24h window</span>';
   }
 }
-
-// Auto-refresh playback data every 30s when visible
-setInterval(() => {
-  const pb = document.getElementById('view-playback');
-  const hm = document.getElementById('view-heatmap');
-  if (pb && !pb.classList.contains('hidden')) loadPlayback();
-  if (hm && !hm.classList.contains('hidden')) loadHeatmap();
-}, 30000);
