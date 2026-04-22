@@ -1,0 +1,43 @@
+import os
+import sys
+os.environ['SIGINT_ENV'] = 'android'
+import threading
+import time
+import traceback
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE)
+
+LOG = '/data/data/com.aero.batteryhealth/files/sigint_startup.log'
+
+def log(msg):
+    try:
+        with open(LOG, 'a') as f:
+            f.write(f"{time.time()}: {msg}\n")
+    except:
+        pass
+
+log("main.py started")
+
+def start_bridge():
+    try:
+        log("importing bridge...")
+        from backend.bridge.server import run
+        log("bridge imported ok")
+        run()
+    except Exception as e:
+        log(f"BRIDGE ERROR: {traceback.format_exc()}")
+
+def start_daemon():
+    try:
+        time.sleep(2)
+        log("importing daemon...")
+        from backend.sensors.daemon import run
+        log("daemon imported ok")
+        run()
+    except Exception as e:
+        log(f"DAEMON ERROR: {traceback.format_exc()}")
+
+threading.Thread(target=start_bridge, daemon=True).start()
+threading.Thread(target=start_daemon, daemon=True).start()
+log("threads started")

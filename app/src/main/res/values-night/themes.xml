@@ -1,0 +1,10 @@
+<resources>
+    <style name="Theme.BatteryHealth" parent="Theme.AppCompat.NoActionBar">
+        <item name="colorPrimary">#060d1a</item>
+        <item name="colorPrimaryDark">#060d1a</item>
+        <item name="colorAccent">#00c6ff</item>
+        <item name="android:windowBackground">#060d1a</item>
+        <item name="android:statusBarColor">#060d1a</item>
+        <item name="android:navigationBarColor">#060d1a</item>
+    </style>
+</resources>

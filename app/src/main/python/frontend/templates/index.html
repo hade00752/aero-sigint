@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#060d1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title id="app-title">Aero·SIGINT</title>
+<link rel="manifest" href="/static/manifest.json">
+<link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+<div id="aurora"></div>
+<div class="bk" id="bk"></div>
+<div id="flash"></div>
+
+<div id="app">
+  <header id="topbar">
+    <div>
+      <div class="brand" id="brand">AERO·<span>SIGINT</span></div>
+      <div id="nid">NODE Ø1 · PASSIVE EW MONITOR</div>
+    </div>
+    <div id="dot"></div>
+  </header>
+
+  <section id="gw">
+    <div id="orb">
+      <div id="ob"></div><div id="og"></div>
+      <div id="or"></div><div id="ostat"></div>
+    </div>
+    <div id="sl">SAFE</div>
+    <div id="ss">All signals normal</div>
+  </section>
+
+  <section id="threats">
+    <div class="tc tc-jam" id="tc-jam">
+      <div class="tc-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(180,198,255,.8)" stroke-width="1.8" stroke-linecap="round">
+          <path d="M1 6l4 6-4 6"/><path d="M23 6l-4 6 4 6"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+        </svg>
+      </div>
+      <div class="tc-label">Signal<br>Jamming</div>
+      <div class="tc-val" id="v-jam">0<span style="font-size:12px;opacity:.6">%</span></div>
+      <div class="tc-status safe-badge" id="s-jam">Clear</div>
+    </div>
+    <div class="tc tc-spoof" id="tc-spoof">
+      <div class="tc-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(0,198,255,.8)" stroke-width="1.8" stroke-linecap="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+          <path d="M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>
+        </svg>
+      </div>
+      <div class="tc-label">Location<br>Spoofing</div>
+      <div class="tc-val" id="v-spoof">0<span style="font-size:12px;opacity:.6">%</span></div>
+      <div class="tc-status safe-badge" id="s-spoof">Clear</div>
+    </div>
+    <div class="tc tc-probe" id="tc-probe">
+      <div class="tc-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="rgba(127,255,212,.8)" stroke-width="1.8" stroke-linecap="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+      </div>
+      <div class="tc-label">Drone<br>Activity</div>
+      <div class="tc-val" id="v-probe">0<span style="font-size:12px;opacity:.6">%</span></div>
+      <div class="tc-status safe-badge" id="s-probe">Clear</div>
+    </div>
+  </section>
+
+  <div id="summary" onclick="toggleDetail()" style="cursor:pointer">
+    <div class="sum-item">
+      <div class="sum-lbl">Signal</div>
+      <div class="sum-val" id="su-cn0">—</div>
+    </div>
+    <div class="sum-divider"></div>
+    <div class="sum-item">
+      <div class="sum-lbl">Field</div>
+      <div class="sum-val" id="su-emf">—</div>
+    </div>
+    <div class="sum-divider"></div>
+    <div class="sum-item">
+      <div class="sum-lbl">Location</div>
+      <div class="sum-val" id="su-gps">OK</div>
+    </div>
+    <div class="sum-divider"></div>
+    <div class="sum-item">
+      <div class="sum-lbl">Devices</div>
+      <div class="sum-val" id="su-dev">—</div>
+    </div>
+    <div style="font-size:8px;color:rgba(120,160,220,.45);letter-spacing:.1em">TAP FOR DETAILS</div>
+  </div>
+
+  <div id="detail">
+    <div class="d-item"><div class="d-lbl">C/N₀</div><div class="d-val" id="d-cn0">—</div></div>
+    <div class="d-item"><div class="d-lbl">Δ Time</div><div class="d-val" id="d-td">—</div></div>
+    <div class="d-item"><div class="d-lbl">Coord Δ</div><div class="d-val" id="d-cj">—</div></div>
+    <div class="d-item"><div class="d-lbl">µT Field</div><div class="d-val" id="d-mag">—</div></div>
+    <div class="d-item"><div class="d-lbl">EMF Conf</div><div class="d-val" id="d-emf">—</div></div>
+    <div class="d-item"><div class="d-lbl">EMF Src</div><div class="d-val" id="d-src">—</div></div>
+    <div class="d-item"><div class="d-lbl">Probes/m</div><div class="d-val" id="d-pr">—</div></div>
+    <div class="d-item"><div class="d-lbl">Fused J</div><div class="d-val" id="d-fj">—</div></div>
+  </div>
+
+  <div id="wfw"><canvas id="wf"></canvas></div>
+
+  <div id="ab">
+    <svg id="ai" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2L19 18H1L10 2Z" stroke="#ff3b3b" stroke-width="1.5" fill="rgba(255,59,59,.14)"/>
+      <line x1="10" y1="8" x2="10" y2="13" stroke="#ff3b3b" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="10" cy="15.5" r=".8" fill="#ff3b3b"/>
+    </svg>
+    <div id="at" class="q">· · · All clear · · ·</div>
+  </div>
+
+  <nav id="tabs">
+    <button class="tab active" data-tab="live" onclick="switchTab('live')">LIVE</button>
+    <button class="tab" data-tab="log" onclick="switchTab('log')">24H LOG</button>
+    <button class="tab" data-tab="pattern" onclick="switchTab('pattern')">PATTERN</button>
+  </nav>
+
+  <div id="ts">––:––:–– UTC</div>
+</div>
+
+<!-- PLAYBACK VIEW -->
+<div id="view-log" class="view hidden">
+  <div class="view-header">
+    <span class="view-title">24H EVENT LOG</span>
+    <span id="pb-count" class="view-badge">0 events</span>
+  </div>
+  <button class="view-back" onclick="switchTab('live')">← Back</button>
+  <div id="pb-timeline"></div>
+</div>
+
+<!-- PATTERN VIEW -->
+<div id="view-pattern" class="view hidden">
+  <div class="view-header">
+    <span class="view-title">PATTERN — RHYTHM OF WAR</span>
+    <span class="view-badge">last 24h · UTC</span>
+  </div>
+  <button class="view-back" onclick="switchTab('live')">← Back</button>
+  <canvas id="heatmap-canvas"></canvas>
+  <div id="heatmap-legend"></div>
+</div>
+
+<!-- STEALTH OVERLAY -->
+<div id="stealth-overlay" class="hidden">
+  <div id="stealth-app">
+    <div id="stealth-header">
+      <span id="stealth-title">Battery Health Optimizer</span>
+      <span id="stealth-version">v2.4.1</span>
+    </div>
+    <div id="stealth-globe-wrap">
+      <div id="stealth-orb"></div>
+      <div id="stealth-status">Optimizing...</div>
+    </div>
+    <div id="stealth-stats">
+      <div class="stealth-stat">
+        <div class="stealth-stat-label">Battery Health</div>
+        <div class="stealth-stat-value" id="s-battery">98%</div>
+        <div class="stealth-stat-sub" id="s-battery-sub">Excellent</div>
+      </div>
+      <div class="stealth-stat">
+        <div class="stealth-stat-label">Cell Temp</div>
+        <div class="stealth-stat-value" id="s-temp">28°C</div>
+        <div class="stealth-stat-sub" id="s-temp-sub">Normal</div>
+      </div>
+      <div class="stealth-stat">
+        <div class="stealth-stat-label">Charge Cycles</div>
+        <div class="stealth-stat-value" id="s-cycles">142</div>
+        <div class="stealth-stat-sub">Good</div>
+      </div>
+    </div>
+    <div id="stealth-bar-wrap">
+      <div id="stealth-bar-label">Optimization Progress</div>
+      <div id="stealth-bar-track"><div id="stealth-bar-fill"></div></div>
+    </div>
+    <div id="stealth-footer">Last scan: just now · Background service active</div>
+  </div>
+</div>
+
+<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/playback.js"></script>
+<script src="/static/js/stealth.js"></script>
+</body>
+</html>
