@@ -128,6 +128,43 @@ def stream():
                              "X-Accel-Buffering": "no",
                              "Connection": "keep-alive"})
 
+
+@app.route("/logs/events")
+def logs_events():
+    import glob, csv
+    events = []
+    try:
+        log_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
+        for f in sorted(glob.glob(os.path.join(log_dir, 'events_*.csv')), reverse=True)[:3]:
+            with open(f) as csvf:
+                for row in csv.DictReader(csvf):
+                    events.append(row)
+    except Exception as e:
+        pass
+    return jsonify(events[-100:] if len(events) > 100 else events)
+
+@app.route("/logs/heatmap")
+def logs_heatmap():
+    buckets = [0] * 24
+    try:
+        import glob, csv
+        log_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'logs')
+        for f in glob.glob(os.path.join(log_dir, 'events_*.csv')):
+            with open(f) as csvf:
+                for row in csv.DictReader(csvf):
+                    try:
+                        hour = int(row.get('ts','00:00')[11:13])
+                        buckets[hour] += 1
+                    except:
+                        pass
+    except:
+        pass
+    return jsonify(buckets)
+
+@app.route("/logs/stats")
+def logs_stats():
+    return jsonify({"total": 0, "critical": 0, "disturbed": 0})
+
 def run():
     t = threading.Thread(target=_udp_listener, daemon=True)
     t.start()

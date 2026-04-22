@@ -38,6 +38,20 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             Python.start(AndroidPlatform(this))
         }
 
+        // Request permissions on first launch
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            val perms = arrayOf(
+                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                android.Manifest.permission.BODY_SENSORS
+            )
+            val missing = perms.filter {
+                checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            }.toTypedArray()
+            if (missing.isNotEmpty()) requestPermissions(missing, 1001)
+        }
+
+
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
         magnetometer?.let {

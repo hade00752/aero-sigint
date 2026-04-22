@@ -187,6 +187,17 @@ function startGPS(){
 // Stealth activation — triple tap brand
 let _tapCount=0,_tapTimer=null;
 document.addEventListener('DOMContentLoaded',()=>{
+  // Triple tap globe for stealth
+  const orb = document.getElementById('orb');
+  if(orb){
+    let orbTaps=0, orbTimer=null;
+    orb.addEventListener('click',()=>{
+      orbTaps++;clearTimeout(orbTimer);
+      orbTimer=setTimeout(()=>{orbTaps=0;},800);
+      if(orbTaps>=3){orbTaps=0;toggleStealth(true);}
+    });
+  }
+
   const brand=document.getElementById('brand');
   if(brand){
     brand.addEventListener('click',()=>{
@@ -225,4 +236,4 @@ function runDemo(){
   _di++;setTimeout(runDemo,2800+Math.random()*1200);
 }
 
-window.addEventListener('load',boot);
+window.addEventListener('load', () => { setTimeout(boot, 600); });
