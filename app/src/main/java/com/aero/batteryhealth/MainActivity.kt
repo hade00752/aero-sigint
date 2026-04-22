@@ -43,8 +43,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             val perms = arrayOf(
                 android.Manifest.permission.ACCESS_FINE_LOCATION,
                 android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                android.Manifest.permission.BODY_SENSORS
+                android.Manifest.permission.BODY_SENSORS,
+                "android.permission.HIGH_SAMPLING_RATE_SENSORS"
             )
+
             val missing = perms.filter {
                 checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
             }.toTypedArray()
