@@ -24,12 +24,33 @@ import config
 
 # ── SNTP constants ─────────────────────────────────────────────────
 _NTP_SERVERS = ["pool.ntp.org", "time.cloudflare.com", "time.google.com"]
+_ntp_cache = {"ts": None, "updated": 0.0}
+_ntp_lock = __import__('threading').Lock()
+
+def _refresh_ntp_async():
+    import threading
+    def _worker():
+        result = _query_ntp_raw()
+        with _ntp_lock:
+            _ntp_cache["ts"] = result
+            _ntp_cache["updated"] = __import__('time').time()
+    threading.Thread(target=_worker, daemon=True).start()
+
+def _get_ntp_cached():
+    import time
+    with _ntp_lock:
+        age = time.time() - _ntp_cache["updated"]
+        ts = _ntp_cache["ts"]
+    # Refresh in background every 30s but never block
+    if age > 30:
+        _refresh_ntp_async()
+    return ts
 _NTP_PORT    = 123
 _NTP_EPOCH   = 2208988800   # seconds between 1900-01-01 and 1970-01-01
 _NTP_PACKET  = b'\x1b' + 47 * b'\0'
 
 
-def _query_ntp(timeout: float = 2.0) -> Optional[float]:
+def _query_ntp_raw(timeout: float = 0.5) -> Optional[float]:
     """
     Returns Unix timestamp from NTP or None on failure.
     Tries multiple servers before giving up.
@@ -102,7 +123,7 @@ class TimeIntegrity:
         now = time.time()
 
         # NTP reference
-        ntp_ts = _query_ntp()
+        ntp_ts = _get_ntp_cached()
         ref_ts = ntp_ts if ntp_ts is not None else now
 
         # GNSS fix (Android only; skipped on WSL)

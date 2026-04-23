@@ -134,26 +134,33 @@ function switchTab(t){
 }
 
 // Waterfall
-const cv=document.getElementById('wf'),cx=cv.getContext('2d');
 let wfData=[];
-function wfResize(){cv.width=cv.offsetWidth*devicePixelRatio;cv.height=cv.offsetHeight*devicePixelRatio;}
+const WF_MAX=60;
+function wfResize(){}
+function wfDraw(){}
 function wfPush(j,s,p){
-  wfData.push({j:j/100,s:s/100,p:p/100});
-  const maxCols=cv.width||400;
-  if(wfData.length>maxCols)wfData.shift();
-  const W=cv.width,H=cv.height,cw=W/Math.max(wfData.length,1);
-  cx.clearRect(0,0,W,H);
+  wfData.push({j:Math.round(j),s:Math.round(s),p:Math.round(p)});
+  if(wfData.length>WF_MAX)wfData.shift();
+  const container=document.getElementById('wf');
+  if(!container)return;
+  let html='';
   for(let i=0;i<wfData.length;i++){
-    const{j:jv,s:sv,p:pv}=wfData[i],x=i*cw;
-    cx.fillStyle='rgba(6,13,26,.88)';cx.fillRect(x,0,cw+1,H);
-    if(jv>0){const h=jv*H*.4,g=cx.createLinearGradient(0,H,0,H-h);g.addColorStop(0,`rgba(245,166,35,${jv*.8})`);g.addColorStop(1,`rgba(255,220,128,${jv*.3})`);cx.fillStyle=g;cx.fillRect(x,H-h,cw+1,h);}
-    if(sv>0){const h=sv*H*.35,m=H*.5,g=cx.createLinearGradient(0,m+h/2,0,m-h/2);g.addColorStop(0,`rgba(0,114,255,${sv*.7})`);g.addColorStop(1,`rgba(0,198,255,${sv*.5})`);cx.fillStyle=g;cx.fillRect(x,m-h/2,cw+1,h);}
-    if(pv>0){const h=pv*H*.3,g=cx.createLinearGradient(0,0,0,h);g.addColorStop(0,`rgba(127,255,212,${pv*.9})`);g.addColorStop(1,`rgba(0,176,155,${pv*.3})`);cx.fillStyle=g;cx.fillRect(x,0,cw+1,h);}
+    const d=wfData[i];
+    const jh=Math.round(d.j*0.4);
+    const sh=Math.round(d.s*0.35);
+    const ph=Math.round(d.p*0.3);
+    const jc=d.j>0?'rgba(245,166,35,'+(0.3+d.j/100*0.7)+')':'transparent';
+    const sc=d.s>0?'rgba(0,114,255,'+(0.3+d.s/100*0.7)+')':'transparent';
+    const pc=d.p>0?'rgba(0,176,155,'+(0.3+d.p/100*0.7)+')':'transparent';
+    html+='<div style="flex:1;height:100%;display:flex;flex-direction:column">';
+    html+='<div style="height:'+ph+'%;background:'+pc+';min-height:'+(d.p>0?2:0)+'px"></div>';
+    html+='<div style="flex:1"></div>';
+    html+='<div style="height:'+jh+'%;background:'+jc+';min-height:'+(d.j>0?2:0)+'px"></div>';
+    html+='</div>';
   }
-  cx.fillStyle='rgba(0,0,0,.08)';for(let y=0;y<H;y+=3)cx.fillRect(0,y,W,1);
+  container.innerHTML=html;
+  container.style.cssText='width:100%;height:56px;display:flex;align-items:stretch;gap:1px;';
 }
-
-function wfDraw(){if(wfData.length>0)wfPush(0,0,0);}
 function spawnBokeh(){
   const l=document.getElementById('bk');
   for(let i=0;i<16;i++){
