@@ -212,9 +212,11 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 async function boot(){
-  wfResize();window.addEventListener('resize',()=>{wfResize();});
+  wfResize();
+  window.addEventListener('resize',()=>{wfResize();wfDraw();});
+  setTimeout(()=>{wfResize();for(let i=0;i<80;i++)wfPush(0,0,0);},300);
+  setTimeout(()=>{wfResize();wfDraw();},800);
   spawnBokeh();
-  for(let i=0;i<80;i++)wfPush(0,0,0);
   try{
     const r=await fetch('/state',{signal:AbortSignal.timeout(4000)});
     if(r.ok){connectSSE();startGPS();return;}
