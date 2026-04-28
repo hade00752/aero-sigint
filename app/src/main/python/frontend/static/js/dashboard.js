@@ -219,6 +219,14 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 async function boot(){
+  // Reload waterfall history from server on reconnect
+  try {
+    const r = await fetch('/history');
+    if(r.ok){
+      const hist = await r.json();
+      hist.forEach(h => wfPush(h.j||0, h.s||0, h.p||0));
+    }
+  } catch(e) {}
   wfResize();
   window.addEventListener('resize',()=>{wfResize();wfDraw();});
   setTimeout(()=>{wfResize();for(let i=0;i<80;i++)wfPush(0,0,0);},300);

@@ -30,6 +30,11 @@ else:
 
 app = Flask(__name__, static_folder=os.path.join(FRONTEND_DIR, 'static'))
 
+# Rolling waterfall history — persists across WebView reconnects
+_history = []  # list of {j, s, p, ts}
+_history_lock = threading.Lock()
+_HISTORY_MAX = 300  # 10 minutes at 2s poll
+
 _latest = {
     "status": "CLEAR", "jam_score": 0, "fused_jam_score": 0,
     "spoof_score": 0, "probe_score": 0,
@@ -53,6 +58,15 @@ def _udp_listener():
                 payload = json.loads(data.decode())
                 with _lock:
                     _latest.update(payload)
+                with _history_lock:
+                    _history.append({
+                        'j': payload.get('fused_jam_score', payload.get('jam_score', 0)),
+                        's': payload.get('spoof_score', 0),
+                        'p': payload.get('probe_score', 0),
+                        'ts': payload.get('ts', '')
+                    })
+                    if len(_history) > _HISTORY_MAX:
+                        _history.pop(0)
                 msg = f"data: {json.dumps(payload)}\n\n"
                 with _sub_lock:
                     dead = []
@@ -129,6 +143,11 @@ def stream():
                              "Connection": "keep-alive"})
 
 
+@app.route("/history")
+def history():
+    with _history_lock:
+        return jsonify(list(_history))
+
 @app.route("/logs/events")
 def logs_events():
     try:
@@ -157,7 +176,45 @@ def logs_stats():
     except Exception as e:
         return jsonify({"total_24h": 0, "critical_24h": 0, "disturbed_24h": 0})
 
+def _save_history():
+    """Save waterfall history to disk every 60s."""
+    import time
+    android_files = '/data/data/com.aero.batteryhealth/files'
+    hist_path = os.path.join(
+        android_files if os.path.exists(android_files)
+        else os.path.join(os.path.dirname(__file__), '..', '..'),
+        'waterfall_history.json'
+    )
+    while True:
+        time.sleep(60)
+        try:
+            with _history_lock:
+                data = list(_history)
+            with open(hist_path, 'w') as f:
+                json.dump(data, f)
+        except Exception as e:
+            pass
+
+def _load_history():
+    """Load waterfall history from disk on startup."""
+    android_files = '/data/data/com.aero.batteryhealth/files'
+    hist_path = os.path.join(
+        android_files if os.path.exists(android_files)
+        else os.path.join(os.path.dirname(__file__), '..', '..'),
+        'waterfall_history.json'
+    )
+    try:
+        with open(hist_path) as f:
+            data = json.load(f)
+        with _history_lock:
+            _history.extend(data[-_HISTORY_MAX:])
+        print(f"[Bridge] Loaded {len(data)} history points")
+    except Exception:
+        pass
+
 def run():
+    _load_history()
+    threading.Thread(target=_save_history, daemon=True).start()
     t = threading.Thread(target=_udp_listener, daemon=True)
     t.start()
     print(f"[Bridge] Dashboard -> http://127.0.0.1:8080")
