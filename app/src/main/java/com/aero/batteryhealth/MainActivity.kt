@@ -1,14 +1,6 @@
 package com.aero.batteryhealth
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -22,12 +14,9 @@ import com.chaquo.python.Python
 import com.chaquo.python.android.AndroidPlatform
 import java.net.HttpURLConnection
 import java.net.URL
-import kotlin.math.sqrt
 
-class MainActivity : AppCompatActivity(), SensorEventListener {
+class MainActivity : AppCompatActivity() {
 
-    private lateinit var sensorManager: SensorManager
-    private var magnetometer: Sensor? = null
     private lateinit var webView: WebView
     private val handler = Handler(Looper.getMainLooper())
 
@@ -48,18 +37,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 android.Manifest.permission.BODY_SENSORS,
                 "android.permission.HIGH_SAMPLING_RATE_SENSORS"
             )
-
             val missing = perms.filter {
                 checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED
             }.toTypedArray()
             if (missing.isNotEmpty()) requestPermissions(missing, 1001)
-        }
-
-
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        magnetometer = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
-        magnetometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
 
         webView = WebView(this)
@@ -75,8 +56,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.webViewClient = WebViewClient()
         // Without this override, setGeolocationEnabled(true) is ignored — the
-        // browser geolocation API returns PERMISSION_DENIED and GPS data never
-        // reaches Python, making time-integrity detection permanently dead.
+        // browser geolocation API returns PERMISSION_DENIED and GPS timestamps
+        // never reach Python, making time-integrity detection permanently dead.
         webView.webChromeClient = object : WebChromeClient() {
             override fun onGeolocationPermissionsShowPrompt(
                 origin: String, callback: GeolocationPermissions.Callback
@@ -125,34 +106,5 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             webView.clearHistory()
             webView.loadUrl("http://127.0.0.1:8080?t=" + System.currentTimeMillis())
         }
-    }
-
-    override fun onSensorChanged(event: SensorEvent) {
-        if (event.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
-            val x = event.values[0]
-            val y = event.values[1]
-            val z = event.values[2]
-            val magnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
-            try {
-                val file = java.io.File(filesDir, "mag_reading.txt")
-                file.writeText("$x,$y,$z,$magnitude")
-            } catch (e: Exception) {}
-        }
-    }
-
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-
-    override fun onPause() {
-        super.onPause()
-        magnetometer?.let { sensorManager.unregisterListener(this, it) }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        magnetometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-        }
-        // Do NOT reload — this would kill the live SSE stream and GPS WebSocket
-        // every time the user alt-tabs, resetting the waterfall and reconnection state.
     }
 }

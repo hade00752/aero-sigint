@@ -7,27 +7,35 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.GnssMeasurement
 import android.location.GnssMeasurementsEvent
 import android.location.LocationManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import kotlin.math.sqrt
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-class SigintService : Service() {
+class SigintService : Service(), SensorEventListener {
 
     private var locationManager: LocationManager? = null
     private var gnssCallback: GnssMeasurementsEvent.Callback? = null
+    private var sensorManager: SensorManager? = null
+    private var magnetometer: Sensor? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         startForegroundWithNotification()
+        startMagnetometer()
         startGnssMeasurements()
         startAlertMonitor()
     }
@@ -39,6 +47,7 @@ class SigintService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         gnssCallback?.let { locationManager?.unregisterGnssMeasurementsCallback(it) }
+        sensorManager?.unregisterListener(this)
     }
 
     // ── Foreground service notification (keeps process alive) ─────────────────
@@ -57,6 +66,36 @@ class SigintService : Service() {
             .build()
         startForeground(1, notification)
     }
+
+    // ── Magnetometer — runs in service so it works with screen off ────────────
+    // Activity-registered sensors die when Android destroys the activity (screen
+    // off, low memory). Service-registered sensors survive until the service is
+    // killed. Writes the same mag_reading.txt that Python's magnetometer.py reads,
+    // keeping the EMF anti-false-alarm gate alive regardless of screen state.
+
+    private fun startMagnetometer() {
+        val sm = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        sensorManager = sm
+        val mag = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+        magnetometer = mag
+        if (mag != null) {
+            sm.registerListener(this, mag, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
+            val x = event.values[0]
+            val y = event.values[1]
+            val z = event.values[2]
+            val magnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
+            try {
+                File(filesDir, "mag_reading.txt").writeText("$x,$y,$z,$magnitude")
+            } catch (_: Exception) {}
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
     // ── GNSS C/N₀ via chipset measurements API (no root, no Termux) ──────────
     // Writes average carrier-to-noise ratio of locked satellites to gnss_cn0.txt.
