@@ -73,8 +73,6 @@ class SensorReading:
         if self.emf_confidence >= 60 and fj < 40:
             ut = f"{self.magnitude_ut:.0f}" if self.magnitude_ut else "?"
             out.append(f"EMF ANOMALY — High-field source nearby ({ut} uT)")
-        if self.time_delta > 1.0:
-            out.append(f"TIME WARP — GNSS/NTP delta {self.time_delta:.2f}s")
         if self.coord_jump_m > 500:
             out.append(f"TELEPORT — {self.coord_jump_m:.0f}m jump detected")
         if self.probe_score >= 70:

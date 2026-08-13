@@ -53,7 +53,7 @@ function updateSummary(d){
 function updateDetail(d){
   const s=(id,v,hot)=>{const el=document.getElementById(id);if(el){el.textContent=v;if(hot!==undefined)el.classList.toggle('hot',hot);}};
   s('d-cn0',d.cn0!=null?d.cn0.toFixed(1)+' dBHz':'—');
-  s('d-td',d.time_delta!=null?d.time_delta.toFixed(2)+'s':'—',(d.time_delta||0)>1);
+  s('d-td',d.time_delta!=null?d.time_delta.toFixed(2)+'s':'—',false);
   s('d-cj',d.coord_jump_m>0?Math.round(d.coord_jump_m)+'m':'0m',d.coord_jump_m>500);
   s('d-mag',d.magnitude_ut!=null?Math.round(d.magnitude_ut)+' µT':'—',d.magnitude_ut>110);
   s('d-emf',(d.emf_confidence||0)+'%');
@@ -66,7 +66,6 @@ function updateDetail(d){
 const PLAIN={
   'RF JAMMING':'GPS signals are being jammed — comms may fail',
   'ACTIVE_SUPPRESSION':'High-power jamming source detected nearby',
-  'TIME WARP':'GPS clock is being manipulated — position unreliable',
   'TELEPORT':'Location jumped suddenly — GPS may be spoofed',
   'PROBE FLOOD':'Unknown devices scanning nearby — possible surveillance',
   'SIGNAL LOSS':'GPS signal lost — obstruction or jamming',

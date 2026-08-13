@@ -27,27 +27,36 @@ _COORD_BASELINE_FILE = '/data/data/com.aero.batteryhealth/files/last_coord.json'
 
 # ── SNTP constants ─────────────────────────────────────────────────
 _NTP_SERVERS = ["pool.ntp.org", "time.cloudflare.com", "time.google.com"]
-_ntp_cache = {"ts": None, "updated": 0.0}
+# Store the clock offset (NTP_time - local_time) rather than a static timestamp.
+# A static cached timestamp grows stale every second; the offset stays valid for minutes.
+_ntp_cache = {"offset": None, "updated": 0.0}
 _ntp_lock = __import__('threading').Lock()
 
 def _refresh_ntp_async():
-    import threading
+    import threading, time as _time
     def _worker():
+        before = _time.time()
         result = _query_ntp_raw()
-        with _ntp_lock:
-            _ntp_cache["ts"] = result
-            _ntp_cache["updated"] = __import__('time').time()
+        after = _time.time()
+        if result is not None:
+            local_mid = (before + after) / 2
+            offset = result - local_mid
+            with _ntp_lock:
+                _ntp_cache["offset"] = offset
+                _ntp_cache["updated"] = _time.time()
     threading.Thread(target=_worker, daemon=True).start()
 
 def _get_ntp_cached():
-    import time
+    import time as _time
+    now = _time.time()
     with _ntp_lock:
-        age = time.time() - _ntp_cache["updated"]
-        ts = _ntp_cache["ts"]
-    # Refresh in background every 30s but never block
-    if age > 30:
+        age = now - _ntp_cache["updated"]
+        offset = _ntp_cache["offset"]
+    if age > 300:  # refresh every 5 minutes
         _refresh_ntp_async()
-    return ts
+    if offset is None:
+        return None
+    return now + offset  # estimated current NTP time
 _NTP_PORT    = 123
 _NTP_EPOCH   = 2208988800   # seconds between 1900-01-01 and 1970-01-01
 _NTP_PACKET  = b'\x1b' + 47 * b'\0'
