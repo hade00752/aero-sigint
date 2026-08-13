@@ -162,9 +162,17 @@ Contributions welcome in:
 
 ---
 
+## Contact
+
+**Email:** haidarmahmood50@gmail.com
+
+For NGO deployment, field testing, translation help, or any questions about the app — email directly. GitHub Issues also works for technical questions.
+
+---
+
 ## Distribution and NGO Deployment
 
-For humanitarian organisations interested in deploying this for field staff or affected communities — open a GitHub issue or reach out directly. We can assist with custom builds, field testing support, and translation verification.
+For humanitarian organisations interested in deploying this for field staff or affected communities — get in touch. We can assist with custom builds, field testing support, and translation verification.
 
 Organisations already relevant to this work:
 - [Access Now](https://accessnow.org) — digital security for at-risk communities
