@@ -234,7 +234,11 @@ async function boot(){
   spawnBokeh();
   try{
     const r=await fetch('/state',{signal:AbortSignal.timeout(4000)});
-    if(r.ok){connectSSE();startGPS();return;}
+    if(r.ok){
+      const d=await r.json();
+      if('battery_unrestricted' in d) updateBatteryWarning(d.battery_unrestricted);
+      connectSSE();startGPS();checkBatteryStatus();return;
+    }
   }catch{}
   runDemo();
 }
@@ -254,6 +258,24 @@ let _di=0;
 function runDemo(){
   ingest({...DEMO[_di%DEMO.length],ts:new Date().toISOString()});
   _di++;setTimeout(runDemo,2800+Math.random()*1200);
+}
+
+function updateBatteryWarning(unrestricted) {
+  const el = document.getElementById('battery-warn');
+  if (!el) return;
+  // null = file not written yet (keep hidden), false = restricted (show warning)
+  el.classList.toggle('hidden', unrestricted !== false);
+}
+
+async function checkBatteryStatus() {
+  try {
+    const r = await fetch('/state', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      const d = await r.json();
+      if ('battery_unrestricted' in d) updateBatteryWarning(d.battery_unrestricted);
+    }
+  } catch {}
+  setTimeout(checkBatteryStatus, 30000);
 }
 
 window.addEventListener('load', () => { setTimeout(boot, 600); });

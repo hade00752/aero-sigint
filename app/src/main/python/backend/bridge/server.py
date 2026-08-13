@@ -109,11 +109,17 @@ def index():
 def health():
     return jsonify({"ok": True, "ts": datetime.now(timezone.utc).isoformat()})
 
+_BATTERY_FILE = '/data/data/com.aero.batteryhealth/files/battery_unrestricted.txt'
+
 @app.route("/state")
 def state():
     with _lock:
         data = dict(_latest)
     data["server_ts"] = datetime.now(timezone.utc).isoformat()
+    try:
+        data["battery_unrestricted"] = open(_BATTERY_FILE).read().strip() == 'true'
+    except Exception:
+        data["battery_unrestricted"] = None  # file not written yet
     return jsonify(data)
 
 @app.route("/debug")

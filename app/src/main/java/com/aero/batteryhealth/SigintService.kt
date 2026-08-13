@@ -17,6 +17,7 @@ import android.location.LocationManager
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import kotlin.math.sqrt
 import org.json.JSONObject
 import java.io.File
@@ -131,10 +132,27 @@ class SigintService : Service(), SensorEventListener {
     // Polls /state every 2 s. Alarm fires once on transition to CRITICAL and
     // clears when status drops back. Full-screen intent wakes the locked screen.
 
+    // ── Battery optimisation status ───────────────────────────────────────────
+    // Writes battery_unrestricted.txt so Python's /state endpoint can surface
+    // it to the dashboard. Checked once at startup and every 60 s thereafter.
+
+    private fun writeBatteryStatus() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        val unrestricted = pm.isIgnoringBatteryOptimizations(packageName)
+        try {
+            File(filesDir, "battery_unrestricted.txt").writeText(unrestricted.toString())
+        } catch (_: Exception) {}
+    }
+
+    // ── Alert monitor — fires alarm when Python declares CRITICAL ─────────────
+
     private fun startAlertMonitor() {
         Thread {
             var alarmActive = false
+            var tick = 0
+            writeBatteryStatus()
             while (true) {
+                if (tick++ % 30 == 0) writeBatteryStatus()  // recheck every 60 s
                 try {
                     val conn = URL("http://127.0.0.1:8080/state").openConnection() as HttpURLConnection
                     conn.connectTimeout = 1000
