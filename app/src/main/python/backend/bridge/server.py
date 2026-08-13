@@ -160,7 +160,16 @@ def test_alarm_route():
         pass
     return jsonify({"ok": True})
 
+_MUTE_FILE    = '/data/data/com.aero.batteryhealth/files/mute_alarm.txt'
 _BASELINE_FILE = '/data/data/com.aero.batteryhealth/files/last_coord.json'
+
+@app.route("/mute-alarm", methods=["POST"])
+def mute_alarm():
+    try:
+        open(_MUTE_FILE, 'w').write(str(time.time()))
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 @app.route("/reset-gps-baseline", methods=["POST"])
 def reset_gps_baseline():

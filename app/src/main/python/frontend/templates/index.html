@@ -120,6 +120,13 @@
     <div class="d-item"><div class="d-lbl" id="dlbl-src">EMF Source</div><div class="d-val" id="d-src">—</div></div>
     <div class="d-item"><div class="d-lbl" id="dlbl-pr">Probes/min</div><div class="d-val" id="d-pr">—</div></div>
     <div class="d-item"><div class="d-lbl" id="dlbl-fj">Jam Score</div><div class="d-val" id="d-fj">—</div></div>
+    <div class="d-item d-item-wide">
+      <div class="d-lbl" id="dlbl-baseline">Local Baseline</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div class="d-val" id="d-baseline" style="font-size:10px;letter-spacing:.06em;flex:1">—</div>
+        <button onclick="resetBaseline()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:5px;color:rgba(180,200,255,.5);font-size:8px;letter-spacing:.1em;padding:3px 7px;cursor:pointer;font-family:inherit">RESET</button>
+      </div>
+    </div>
   </div>
 
   <div id="wfw"><div id="wf" style="width:100%;height:56px;display:flex;align-items:stretch;gap:1px;background:rgba(6,13,26,.88);border-radius:0 0 14px 14px"></div></div>
@@ -131,6 +138,7 @@
       <circle cx="10" cy="15.5" r=".8" fill="#ff3b3b"/>
     </svg>
     <div id="at" class="q">· · · All clear · · ·</div>
+    <button id="mute-btn" class="hidden" onclick="muteAlarm()">SILENCE</button>
   </div>
 
   <nav id="tabs">

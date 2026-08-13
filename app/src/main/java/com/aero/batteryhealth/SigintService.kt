@@ -212,6 +212,14 @@ class SigintService : Service(), SensorEventListener {
         } catch (_: Exception) {}
     }
 
+    // ── Mute check (user silenced alarm from in-app button) ───────────────────
+    // Mute lasts 5 minutes — suppresses sound only, notification stays visible.
+
+    private fun isAlarmMuted(): Boolean = try {
+        val f = File(filesDir, "mute_alarm.txt")
+        f.exists() && System.currentTimeMillis() - f.lastModified() < 5 * 60_000L
+    } catch (_: Exception) { false }
+
     // ── Direct sensor file check (no Flask / Python dependency) ──────────────
     // Only satellite count == 0 warrants a full alarm without Flask confirmation.
     // Magnetometer spikes alone are NOT alarmed — a laptop or microwave would
@@ -300,6 +308,10 @@ class SigintService : Service(), SensorEventListener {
                 val isCritical = testActive || directCritical || flaskCritical
                 if (isCritical && !alarmActive) {
                     fireAlarm(); alarmActive = true
+                } else if (isCritical && alarmActive) {
+                    // Alarm stays active visually; only manage sound based on mute state
+                    if (isAlarmMuted()) stopAlarmSound()
+                    else if (alarmPlayer == null || alarmPlayer?.isPlaying == false) playAlarmSound()
                 } else if (!isCritical && alarmActive) {
                     cancelAlarm(); alarmActive = false
                 }
