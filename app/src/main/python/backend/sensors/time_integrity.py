@@ -81,6 +81,7 @@ class TimeIntegrity:
     def __init__(self):
         self._last_coord: Optional[tuple[float, float]] = self._load_baseline()
         self._last_fix_time: Optional[float] = None
+        self._pos_history: list[tuple[float, float]] = []  # for variance check
 
     def _load_baseline(self) -> Optional[tuple[float, float]]:
         try:
@@ -120,6 +121,16 @@ class TimeIntegrity:
             return (float(gnss_ts) if gnss_ts is not None else None), float(lat), float(lon)
         except Exception:
             return None, None, None
+
+    def _position_variance_m2(self) -> float:
+        """Variance of position history in m². Real GPS: >1m². Mock GPS: ~0."""
+        n = len(self._pos_history)
+        if n < 6:
+            return 999.0
+        mean_lat = sum(h[0] for h in self._pos_history) / n
+        mean_lon = sum(h[1] for h in self._pos_history) / n
+        v = sum((h[0] - mean_lat) ** 2 + (h[1] - mean_lon) ** 2 for h in self._pos_history) / n
+        return v * (111_000.0 ** 2)
 
     # ── Haversine ─────────────────────────────────────────────────
     @staticmethod
@@ -170,6 +181,11 @@ class TimeIntegrity:
             )
 
         if lat is not None and lon is not None:
+            # Track position history for variance analysis
+            self._pos_history.append((lat, lon))
+            if len(self._pos_history) > 12:
+                self._pos_history.pop(0)
+
             # Only update baseline for small, plausible movements (<5km).
             # A large jump means spoofing — don't let it overwrite the real baseline.
             if self._last_coord is None or coord_jump < 5_000:
@@ -185,6 +201,13 @@ class TimeIntegrity:
             # Scale: 1km=2, 5km=10, 25km=50 (CRITICAL), 50km+=70 (max).
             # Old cap of 30 meant a jump alone could never reach CRITICAL (50).
             score += min(70, int(coord_jump / 500))
+
+        # Zero-variance detection: real GPS always drifts ±2-15m even stationary.
+        # Mock location apps report exactly the same coordinates every time → variance ≈ 0.
+        # Threshold 1.0 m² is well below real GPS noise floor; mock GPS is always < 0.001 m².
+        variance_m2 = self._position_variance_m2()
+        if variance_m2 < 1.0 and len(self._pos_history) >= 6:
+            score += 55
 
         return {
             "time_delta_s":  round(time_delta, 3),

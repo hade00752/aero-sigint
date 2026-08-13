@@ -185,13 +185,18 @@ async function startPolling(){
 
 function startGPS(){
   if(!navigator.geolocation)return;
-  let ws=null,ready=false;
-  const conn=()=>{try{ws=new WebSocket('ws://127.0.0.1:9001');ws.onopen=()=>{ready=true;};ws.onclose=()=>{ready=false;setTimeout(conn,3000);};ws.onerror=()=>{ready=false;};}catch{}};
+  let ws=null,ready=false,lastPos=null;
+  const send=()=>{
+    if(!ready||!ws||!lastPos)return;
+    try{ws.send(JSON.stringify({lat:lastPos.coords.latitude,lon:lastPos.coords.longitude,accuracy:lastPos.coords.accuracy,gnss_ts:lastPos.timestamp/1000}));}catch{}
+  };
+  const conn=()=>{try{ws=new WebSocket('ws://127.0.0.1:9001');ws.onopen=()=>{ready=true;send();};ws.onclose=()=>{ready=false;setTimeout(conn,3000);};ws.onerror=()=>{ready=false;};}catch{}};
   conn();
-  navigator.geolocation.watchPosition(pos=>{
-    if(!ready||!ws)return;
-    try{ws.send(JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy,gnss_ts:pos.timestamp/1000}));}catch{};
-  },()=>{},{enableHighAccuracy:true,maximumAge:45000,timeout:15000});
+  // Re-poll every 5s so a static mock position keeps flowing even without movement
+  setInterval(()=>{
+    navigator.geolocation.getCurrentPosition(pos=>{lastPos=pos;send();},()=>{},{enableHighAccuracy:true,maximumAge:4000,timeout:8000});
+  },5000);
+  navigator.geolocation.watchPosition(pos=>{lastPos=pos;send();},()=>{},{enableHighAccuracy:true,maximumAge:45000,timeout:15000});
 }
 
 // Stealth activation — triple tap brand

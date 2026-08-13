@@ -160,6 +160,17 @@ def test_alarm_route():
         pass
     return jsonify({"ok": True})
 
+_BASELINE_FILE = '/data/data/com.aero.batteryhealth/files/last_coord.json'
+
+@app.route("/reset-gps-baseline", methods=["POST"])
+def reset_gps_baseline():
+    try:
+        if os.path.exists(_BASELINE_FILE):
+            os.remove(_BASELINE_FILE)
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
 @app.route("/debug")
 def debug():
     log_content = ""

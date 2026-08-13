@@ -44,7 +44,7 @@ import time
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import config
 
-GPS_FIX_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'gps_fix.json')
+GPS_FIX_FILE = '/data/data/com.aero.batteryhealth/files/gps_fix.json'
 WS_PORT      = 9001
 
 
