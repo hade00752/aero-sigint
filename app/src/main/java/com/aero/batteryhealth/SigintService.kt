@@ -349,8 +349,8 @@ class SigintService : Service(), SensorEventListener {
         )
 
         val notification = Notification.Builder(this, channelId)
-            .setContentTitle("⚠ GPS JAMMING DETECTED")
-            .setContentText("GPS signal compromised — seek cover now.")
+            .setContentTitle("GPS Signal Alert")
+            .setContentText("Strong interference detected. Do not rely on GPS location.")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setFullScreenIntent(pi, true)
             .setVibrate(vibrationPattern)

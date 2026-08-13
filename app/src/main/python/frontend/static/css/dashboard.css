@@ -1,6 +1,23 @@
 /* Aero·SIGINT v5 — Civilian-first dashboard */
-/* Offline font fallback */
+/* Arabic system font support */
+body{font-family:Arial,'Noto Sans Arabic',sans-serif}
+/* Monospace elements keep their font; Arabic numerals display fine in Courier New */
 .brand,#sl,#nid,#ts,.tc-val,.sum-val,.d-val,.tab{font-family:"Courier New",monospace}
+
+/* ── RTL layout overrides ───────────────────────────────────────── */
+[dir="rtl"] #topbar{flex-direction:row-reverse}
+[dir="rtl"] #summary{flex-direction:row-reverse}
+[dir="rtl"] .sum-divider{order:unset}
+[dir="rtl"] #detail{direction:rtl}
+[dir="rtl"] #threats{direction:rtl}
+[dir="rtl"] #ctrl{direction:rtl}
+[dir="rtl"] #ab{direction:rtl;text-align:right}
+[dir="rtl"] #nid{text-align:right}
+[dir="rtl"] .help-row{flex-direction:row-reverse;text-align:right}
+[dir="rtl"] .help-card-body{text-align:right}
+[dir="rtl"] .view-header{flex-direction:row-reverse}
+[dir="rtl"] nav#tabs{direction:rtl}
+[dir="rtl"] .tc-label,[dir="rtl"] .tc-desc,[dir="rtl"] .tc-status{text-align:center}
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
