@@ -90,8 +90,6 @@ class TimeIntegrity:
     def __init__(self):
         self._last_coord: Optional[tuple[float, float]] = self._load_baseline()
         self._last_fix_time: Optional[float] = None
-        self._pos_history: list[tuple[float, float]] = []
-        self._last_accuracy: float = 999.0
 
     def _load_baseline(self) -> Optional[tuple[float, float]]:
         try:
@@ -126,16 +124,6 @@ class TimeIntegrity:
         except Exception:
             return None, None, None, 999.0
 
-    def _position_variance_m2(self) -> float:
-        """Variance of position history in m². Real GPS: >1m². Mock GPS: ~0."""
-        n = len(self._pos_history)
-        if n < 6:
-            return 999.0
-        mean_lat = sum(h[0] for h in self._pos_history) / n
-        mean_lon = sum(h[1] for h in self._pos_history) / n
-        v = sum((h[0] - mean_lat) ** 2 + (h[1] - mean_lon) ** 2 for h in self._pos_history) / n
-        return v * (111_000.0 ** 2)
-
     # ── Haversine ─────────────────────────────────────────────────
     @staticmethod
     def _haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -164,7 +152,6 @@ class TimeIntegrity:
         gnss_ts, lat, lon, accuracy = None, None, None, 999.0
         if config.IS_ANDROID:
             gnss_ts, lat, lon, accuracy = self._gnss_fix()
-            self._last_accuracy = accuracy
 
         # Only compute time_delta when both a real GNSS timestamp and a
         # populated NTP cache are available. Skipping either prevents:
@@ -186,11 +173,6 @@ class TimeIntegrity:
             )
 
         if lat is not None and lon is not None:
-            # Track position history for variance analysis
-            self._pos_history.append((lat, lon))
-            if len(self._pos_history) > 12:
-                self._pos_history.pop(0)
-
             # Only update baseline for small, plausible movements (<5km).
             # A large jump means spoofing — don't let it overwrite the real baseline.
             if self._last_coord is None or coord_jump < 5_000:
@@ -205,14 +187,6 @@ class TimeIntegrity:
         if coord_jump > config.TELEPORT_THRESHOLD_M:
             # Scale: 1km=2, 5km=10, 25km=50 (CRITICAL), 50km+=70 (max).
             score += min(70, int(coord_jump / 500))
-
-        # Zero-variance detection: real GPS always drifts ±2-15m even stationary.
-        # Mock location apps report exactly the same coordinates every time → variance ≈ 0.
-        # Gated on accuracy < 50m so WiFi/cell network fallback (stable but coarse)
-        # doesn't false-positive — network fixes report accuracy 50-200m.
-        variance_m2 = self._position_variance_m2()
-        if variance_m2 < 1.0 and len(self._pos_history) >= 6 and self._last_accuracy < 50.0:
-            score += 55
 
         # time_delta is computed for display only — not scored.
         # GPS chip epoch vs NTP can legitimately differ by 1-5s due to signal
