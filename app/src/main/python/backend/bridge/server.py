@@ -121,7 +121,17 @@ def state():
     try:
         data["battery_unrestricted"] = open(_BATTERY_FILE).read().strip() == 'true'
     except Exception:
-        data["battery_unrestricted"] = None  # file not written yet
+        data["battery_unrestricted"] = None
+    try:
+        from backend.sensors.gps_poller import read_fix
+        fix = read_fix()
+        data["gps_locked"] = fix is not None
+        data["gps_lat"] = round(fix["lat"], 4) if fix else None
+        data["gps_lon"] = round(fix["lon"], 4) if fix else None
+    except Exception:
+        data["gps_locked"] = False
+        data["gps_lat"] = None
+        data["gps_lon"] = None
     return jsonify(data)
 
 @app.route("/lowpower", methods=["GET"])

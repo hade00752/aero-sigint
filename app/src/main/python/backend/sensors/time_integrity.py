@@ -10,6 +10,7 @@ NTP is queried directly via SNTP (RFC 4330) with no extra libraries.
 Falls back gracefully to system clock on WSL where NTP port may be blocked.
 """
 
+import json
 import math
 import os
 import socket
@@ -20,6 +21,8 @@ from typing import Optional
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 import config
+
+_COORD_BASELINE_FILE = '/data/data/com.aero.batteryhealth/files/last_coord.json'
 
 
 # ── SNTP constants ─────────────────────────────────────────────────
@@ -76,8 +79,22 @@ class TimeIntegrity:
     """
 
     def __init__(self):
-        self._last_coord: Optional[tuple[float, float]] = None
+        self._last_coord: Optional[tuple[float, float]] = self._load_baseline()
         self._last_fix_time: Optional[float] = None
+
+    def _load_baseline(self) -> Optional[tuple[float, float]]:
+        try:
+            d = json.loads(open(_COORD_BASELINE_FILE).read())
+            return (float(d['lat']), float(d['lon']))
+        except Exception:
+            return None
+
+    def _save_baseline(self, lat: float, lon: float):
+        try:
+            with open(_COORD_BASELINE_FILE, 'w') as f:
+                json.dump({'lat': lat, 'lon': lon, 'ts': time.time()}, f)
+        except Exception:
+            pass
 
     # ── GNSS fix (browser Geolocation via gps_poller) ─────────────
     @staticmethod
@@ -142,25 +159,32 @@ class TimeIntegrity:
         else:
             time_delta = 0.0
 
-        # Teleportation check
+        # Teleportation check.
+        # Compares against persisted baseline so jumps are detected even
+        # when mock GPS is already active on startup (bug: first fix would
+        # set last_coord to the fake position and subsequent fixes show no jump).
         coord_jump = 0.0
         if lat is not None and lon is not None and self._last_coord is not None:
-            elapsed = now - (self._last_fix_time or now)
-            if elapsed < config.POLL_INTERVAL * 3:
-                coord_jump = self._haversine(
-                    self._last_coord[0], self._last_coord[1], lat, lon
-                )
+            coord_jump = self._haversine(
+                self._last_coord[0], self._last_coord[1], lat, lon
+            )
 
         if lat is not None and lon is not None:
-            self._last_coord = (lat, lon)
-            self._last_fix_time = now
+            # Only update baseline for small, plausible movements (<5km).
+            # A large jump means spoofing — don't let it overwrite the real baseline.
+            if self._last_coord is None or coord_jump < 5_000:
+                self._last_coord = (lat, lon)
+                self._last_fix_time = now
+                self._save_baseline(lat, lon)
 
         # Score
         score = 0
         if time_delta > config.TIME_DELTA_THRESHOLD:
             score += min(70, int(time_delta * 30))
         if coord_jump > config.TELEPORT_THRESHOLD_M:
-            score += min(30, int(coord_jump / 100))
+            # Scale: 1km=2, 5km=10, 25km=50 (CRITICAL), 50km+=70 (max).
+            # Old cap of 30 meant a jump alone could never reach CRITICAL (50).
+            score += min(70, int(coord_jump / 500))
 
         return {
             "time_delta_s":  round(time_delta, 3),
