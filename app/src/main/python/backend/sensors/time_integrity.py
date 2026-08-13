@@ -81,7 +81,8 @@ class TimeIntegrity:
     def __init__(self):
         self._last_coord: Optional[tuple[float, float]] = self._load_baseline()
         self._last_fix_time: Optional[float] = None
-        self._pos_history: list[tuple[float, float]] = []  # for variance check
+        self._pos_history: list[tuple[float, float]] = []
+        self._last_accuracy: float = 999.0
 
     def _load_baseline(self) -> Optional[tuple[float, float]]:
         try:
@@ -99,28 +100,22 @@ class TimeIntegrity:
 
     # ── GNSS fix (browser Geolocation via gps_poller) ─────────────
     @staticmethod
-    def _gnss_fix() -> tuple[Optional[float], Optional[float], Optional[float]]:
-        """
-        Reads from the shared GPS fix file written by gps_poller.py.
-        The browser sends window.navigator.geolocation fixes to a local
-        WebSocket on port 9001. No Termux:API required.
-        """
+    def _gnss_fix() -> tuple[Optional[float], Optional[float], Optional[float], float]:
+        """Returns (gnss_ts, lat, lon, accuracy_m). accuracy_m=999 when unknown."""
         try:
             from backend.sensors.gps_poller import read_fix
             fix = read_fix()
             if fix is None:
-                return None, None, None
+                return None, None, None, 999.0
             lat = fix.get("lat") or fix.get("latitude")
             lon = fix.get("lon") or fix.get("longitude")
             if lat is None or lon is None:
-                return None, None, None
-            # gnss_ts is the real GPS chip epoch (pos.timestamp/1000 from browser).
-            # Do NOT fall back to fix["ts"] — that is the server receipt time and
-            # would make time_delta ≈ 0 regardless of spoofing.
+                return None, None, None, 999.0
             gnss_ts = fix.get("gnss_ts")
-            return (float(gnss_ts) if gnss_ts is not None else None), float(lat), float(lon)
+            accuracy = float(fix.get("accuracy") or 999.0)
+            return (float(gnss_ts) if gnss_ts is not None else None), float(lat), float(lon), accuracy
         except Exception:
-            return None, None, None
+            return None, None, None, 999.0
 
     def _position_variance_m2(self) -> float:
         """Variance of position history in m². Real GPS: >1m². Mock GPS: ~0."""
@@ -157,9 +152,10 @@ class TimeIntegrity:
         ntp_ref = _get_ntp_cached()
 
         # GNSS fix (Android only; skipped on WSL)
-        gnss_ts, lat, lon = None, None, None
+        gnss_ts, lat, lon, accuracy = None, None, None, 999.0
         if config.IS_ANDROID:
-            gnss_ts, lat, lon = self._gnss_fix()
+            gnss_ts, lat, lon, accuracy = self._gnss_fix()
+            self._last_accuracy = accuracy
 
         # Only compute time_delta when both a real GNSS timestamp and a
         # populated NTP cache are available. Skipping either prevents:
@@ -195,19 +191,23 @@ class TimeIntegrity:
 
         # Score
         score = 0
-        if time_delta > config.TIME_DELTA_THRESHOLD:
-            score += min(70, int(time_delta * 30))
+
+        # Coordinate teleportation — most reliable spoof indicator
         if coord_jump > config.TELEPORT_THRESHOLD_M:
             # Scale: 1km=2, 5km=10, 25km=50 (CRITICAL), 50km+=70 (max).
-            # Old cap of 30 meant a jump alone could never reach CRITICAL (50).
             score += min(70, int(coord_jump / 500))
 
         # Zero-variance detection: real GPS always drifts ±2-15m even stationary.
         # Mock location apps report exactly the same coordinates every time → variance ≈ 0.
-        # Threshold 1.0 m² is well below real GPS noise floor; mock GPS is always < 0.001 m².
+        # Gated on accuracy < 50m so WiFi/cell network fallback (stable but coarse)
+        # doesn't false-positive — network fixes report accuracy 50-200m.
         variance_m2 = self._position_variance_m2()
-        if variance_m2 < 1.0 and len(self._pos_history) >= 6:
+        if variance_m2 < 1.0 and len(self._pos_history) >= 6 and self._last_accuracy < 50.0:
             score += 55
+
+        # time_delta is computed for display only — not scored.
+        # GPS chip epoch vs NTP can legitimately differ by 1-5s due to signal
+        # processing delays, and mock GPS apps use current system time anyway.
 
         return {
             "time_delta_s":  round(time_delta, 3),
