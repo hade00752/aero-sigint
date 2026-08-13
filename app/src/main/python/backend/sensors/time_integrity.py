@@ -94,10 +94,13 @@ class TimeIntegrity:
                 return None, None, None
             lat = fix.get("lat") or fix.get("latitude")
             lon = fix.get("lon") or fix.get("longitude")
-            ts  = fix.get("ts", time.time())
             if lat is None or lon is None:
                 return None, None, None
-            return float(ts), float(lat), float(lon)
+            # gnss_ts is the real GPS chip epoch (pos.timestamp/1000 from browser).
+            # Do NOT fall back to fix["ts"] — that is the server receipt time and
+            # would make time_delta ≈ 0 regardless of spoofing.
+            gnss_ts = fix.get("gnss_ts")
+            return (float(gnss_ts) if gnss_ts is not None else None), float(lat), float(lon)
         except Exception:
             return None, None, None
 
@@ -122,16 +125,22 @@ class TimeIntegrity:
         """
         now = time.time()
 
-        # NTP reference
-        ntp_ts = _get_ntp_cached()
-        ref_ts = ntp_ts if ntp_ts is not None else now
+        # NTP from cache — never blocks
+        ntp_ref = _get_ntp_cached()
 
         # GNSS fix (Android only; skipped on WSL)
         gnss_ts, lat, lon = None, None, None
         if config.IS_ANDROID:
             gnss_ts, lat, lon = self._gnss_fix()
 
-        time_delta = abs(gnss_ts - ref_ts) if gnss_ts is not None else 0.0
+        # Only compute time_delta when both a real GNSS timestamp and a
+        # populated NTP cache are available. Skipping either prevents:
+        #   - Cold-start false alarms (NTP not yet resolved)
+        #   - Spurious deltas from missing gnss_ts in older dashboard builds
+        if gnss_ts is not None and ntp_ref is not None:
+            time_delta = abs(gnss_ts - ntp_ref)
+        else:
+            time_delta = 0.0
 
         # Teleportation check
         coord_jump = 0.0

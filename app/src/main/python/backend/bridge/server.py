@@ -4,6 +4,7 @@ import queue
 import socket
 import sys
 import threading
+import time
 import traceback
 from datetime import datetime, timezone
 
@@ -48,39 +49,52 @@ _subscribers = []
 _sub_lock = threading.Lock()
 
 def _udp_listener():
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((config.UDP_HOST, config.UDP_PORT))
-        while True:
-            try:
-                data, _ = sock.recvfrom(8192)
-                payload = json.loads(data.decode())
-                with _lock:
-                    _latest.update(payload)
-                with _history_lock:
-                    _history.append({
-                        'j': payload.get('fused_jam_score', payload.get('jam_score', 0)),
-                        's': payload.get('spoof_score', 0),
-                        'p': payload.get('probe_score', 0),
-                        'ts': payload.get('ts', '')
-                    })
-                    if len(_history) > _HISTORY_MAX:
-                        _history.pop(0)
-                msg = f"data: {json.dumps(payload)}\n\n"
-                with _sub_lock:
-                    dead = []
-                    for q in _subscribers:
-                        try:
-                            q.put_nowait(msg)
-                        except queue.Full:
-                            dead.append(q)
-                    for q in dead:
-                        _subscribers.remove(q)
-            except Exception:
-                pass
-    except Exception as e:
-        pass
+    """Receives sensor payloads and fans out to SSE subscribers.
+    Restarts automatically on bind failure so the bridge never goes deaf."""
+    while True:
+        sock = None
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind((config.UDP_HOST, config.UDP_PORT))
+            while True:
+                try:
+                    data, _ = sock.recvfrom(8192)
+                    payload = json.loads(data.decode())
+                    with _lock:
+                        _latest.update(payload)
+                    with _history_lock:
+                        _history.append({
+                            'j': payload.get('fused_jam_score', payload.get('jam_score', 0)),
+                            's': payload.get('spoof_score', 0),
+                            'p': payload.get('probe_score', 0),
+                            'ts': payload.get('ts', '')
+                        })
+                        if len(_history) > _HISTORY_MAX:
+                            _history.pop(0)
+                    msg = f"data: {json.dumps(payload)}\n\n"
+                    with _sub_lock:
+                        dead = []
+                        for q in _subscribers:
+                            try:
+                                q.put_nowait(msg)
+                            except queue.Full:
+                                dead.append(q)
+                        for q in dead:
+                            _subscribers.remove(q)
+                except json.JSONDecodeError as e:
+                    print(f"[Bridge] UDP parse error: {e}", flush=True)
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[Bridge] UDP bind failed: {e} — retrying in 5 s", flush=True)
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+        time.sleep(5)
 
 @app.route("/")
 def index():

@@ -186,11 +186,11 @@ async function startPolling(){
 function startGPS(){
   if(!navigator.geolocation)return;
   let ws=null,ready=false;
-  const conn=()=>{try{ws=new WebSocket('ws://127.0.0.1:9002');ws.onopen=()=>{ready=true;};ws.onclose=()=>{ready=false;setTimeout(conn,3000);};ws.onerror=()=>{ready=false;};}catch{}};
+  const conn=()=>{try{ws=new WebSocket('ws://127.0.0.1:9001');ws.onopen=()=>{ready=true;};ws.onclose=()=>{ready=false;setTimeout(conn,3000);};ws.onerror=()=>{ready=false;};}catch{}};
   conn();
   navigator.geolocation.watchPosition(pos=>{
     if(!ready||!ws)return;
-    try{ws.send(JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy}));}catch{};
+    try{ws.send(JSON.stringify({lat:pos.coords.latitude,lon:pos.coords.longitude,accuracy:pos.coords.accuracy,gnss_ts:pos.timestamp/1000}));}catch{};
   },()=>{},{enableHighAccuracy:true,maximumAge:45000,timeout:15000});
 }
 

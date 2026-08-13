@@ -38,6 +38,10 @@ def start_daemon():
     except Exception as e:
         log(f"DAEMON ERROR: {traceback.format_exc()}")
 
-threading.Thread(target=start_bridge, daemon=True).start()
 threading.Thread(target=start_daemon, daemon=True).start()
 log("threads started")
+
+# Bridge runs on the main thread (non-daemon) so the process stays alive for
+# the lifetime of the Flask server. Chaquopy keeps main.py alive as long as
+# any non-daemon thread is running.
+start_bridge()

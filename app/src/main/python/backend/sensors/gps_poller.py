@@ -132,8 +132,10 @@ def _handle_client(conn, addr):
             try:
                 fix = json.loads(msg)
                 fix["source"] = "browser"
-                fix["ts"]     = time.time()
-                # Atomic write via rename
+                fix["ts"] = time.time()   # receipt time — used for staleness only
+                # gnss_ts (pos.timestamp/1000) is the GPS chip epoch sent by
+                # dashboard.js. Do NOT overwrite it — time_integrity uses it
+                # for time-warp detection against NTP.
                 tmp = GPS_FIX_FILE + ".tmp"
                 with open(tmp, "w") as f:
                     json.dump(fix, f)
@@ -166,17 +168,21 @@ def run_ws_server():
 
 
 # ── Convenience read function used by time_integrity.py ───────────
+# Must be > POLL_STANDBY (10 s) so a fix from the start of a standby cycle
+# is still valid when the daemon wakes at the end of it.
+_GPS_STALE_SECONDS = 20
+
+
 def read_fix() -> dict | None:
     """
     Read the latest GPS fix from the shared file.
-    Returns dict with lat, lon, ts, accuracy, source — or None if stale/missing.
-    Max age: 10 seconds (stale fix is worse than no fix).
+    Returns dict with lat, lon, ts, gnss_ts, accuracy, source — or None if stale.
     """
     try:
         with open(GPS_FIX_FILE) as f:
             fix = json.load(f)
         age = time.time() - fix.get("ts", 0)
-        if age > 10:
+        if age > _GPS_STALE_SECONDS:
             return None
         return fix
     except Exception:

@@ -4,9 +4,13 @@ import time
 import threading
 from collections import deque
 
-_WINDOW_SIZE = 30
+_WINDOW_SIZE       = 30
+_SPIKE_CONFIRM     = 3   # consecutive samples above 110 µT before confidence fires
+_VARIANCE_CONFIRM  = 4   # consecutive samples above 80 µT² before confidence fires
 _window = deque(maxlen=_WINDOW_SIZE)
 _lock = threading.Lock()
+_consecutive_spikes   = 0
+_consecutive_variance = 0
 
 
 def _get_mag_file():
@@ -69,10 +73,25 @@ class MagnetometerSensor:
         variance = sum((s - mean) ** 2 for s in samples) / len(samples)
         peak = max(samples)
 
+        global _consecutive_spikes, _consecutive_variance
+
+        # Require sustained readings before firing confidence — prevents single
+        # pass under power lines or near a speaker from triggering an alert.
         confidence = 0
+
         if peak > 110.0:
-            confidence += min(60, int((peak - 110.0) * 1.2))
+            _consecutive_spikes += 1
+        else:
+            _consecutive_spikes = 0
+
         if variance > 80.0:
+            _consecutive_variance += 1
+        else:
+            _consecutive_variance = 0
+
+        if _consecutive_spikes >= _SPIKE_CONFIRM:
+            confidence += min(60, int((peak - 110.0) * 1.2))
+        if _consecutive_variance >= _VARIANCE_CONFIRM:
             confidence += min(40, int((variance - 80.0) * 0.3))
         confidence = min(100, confidence)
 

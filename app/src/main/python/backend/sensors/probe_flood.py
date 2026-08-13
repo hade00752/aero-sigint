@@ -46,9 +46,16 @@ class ProbeFloodSensor:
     """
 
     def __init__(self):
-        # (timestamp, mac_lower) tuples
         self._window: list[tuple[float, str]] = []
         self._iface = os.getenv("SIGINT_WIFI_IFACE", "wlan0")
+        # Infrastructure baseline — MACs seen in the first 60 s are considered
+        # local APs / known devices and excluded from scoring. Without this,
+        # dense urban environments (shopping centres, airports) exceed the burst
+        # threshold from ambient APs alone and produce constant false alarms.
+        self._baseline_macs: set[str] = set()
+        self._baseline_done = False
+        self._baseline_end  = time.time() + 60.0
+        print("[Probe] Collecting infrastructure baseline for 60 s…")
 
     # ── Source 1: iw scan dump ────────────────────────────────────
     def _iw_macs(self) -> set[str]:
@@ -97,7 +104,14 @@ class ProbeFloodSensor:
         if not macs:
             macs = self._arp_macs()
 
-        for mac in macs:
+        if not self._baseline_done:
+            self._baseline_macs.update(macs)
+            if now >= self._baseline_end:
+                self._baseline_done = True
+                print(f"[Probe] Baseline complete — {len(self._baseline_macs)} infrastructure MACs registered")
+
+        new_macs = macs - self._baseline_macs
+        for mac in new_macs:
             self._window.append((now, mac))
 
         # Prune window

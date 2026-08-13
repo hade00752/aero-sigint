@@ -19,9 +19,7 @@ from backend.sensors._android_sensor import AndroidSensor
 from backend.utils.blackbox import BlackBox
 
 
-def _broadcast(sock, reading):
-    payload = reading.to_dict()
-    payload["ts"] = datetime.now(timezone.utc).isoformat()
+def _broadcast(sock, payload):
     sock.sendto(json.dumps(payload).encode(), (config.UDP_HOST, config.UDP_PORT))
 
 
@@ -36,9 +34,9 @@ def run():
         t0 = time.monotonic()
         try:
             reading = sensor.read()
-            _broadcast(sock, reading)
             payload = reading.to_dict()
             payload["ts"] = datetime.now(timezone.utc).isoformat()
+            _broadcast(sock, payload)
             blackbox.log(payload)
         except Exception as e:
             print(f"[DAEMON] sensor error: {e}")
