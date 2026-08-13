@@ -3,9 +3,11 @@ backend/sensors/radio.py
 Phase 1 — RF Jamming detection via C/N₀ monitoring.
 
 Source priority (Android / Chaquopy):
-  1. termux-location --provider gps   (background thread, cached — Termux only)
-  2. dumpsys wifi                      (fallback WiFi SNR — weaker signal)
-  3. Synthetic baseline noise          (last resort)
+  1. gnss_cn0.txt   — written by SigintService via GnssMeasurementsEvent.Callback
+                       Real chipset C/N₀, no root, no Termux, any Android 7+ device.
+  2. termux-location — background thread, cached (Termux only, harmless no-op in APK)
+  3. dumpsys wifi    — WiFi SNR proxy (responds to 2.4 GHz jamming, not GPS-band)
+  4. Synthetic       — last resort during cold start
 
 AGC note: Android exposes no real AGC without root. The constant-offset
 proxy (agc = cn0 - 5) added zero independent signal and has been removed.
@@ -31,6 +33,11 @@ import config
 
 _BASELINE_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'baseline.json')
 _ANDROID_BASELINE_SAMPLES = 8
+
+# Written by SigintService.startGnssMeasurements() via GnssMeasurementsEvent.Callback.
+# Updated on every satellite measurement event (typically every second).
+_GNSS_CN0_FILE = "/data/data/com.aero.batteryhealth/files/gnss_cn0.txt"
+_GNSS_CN0_MAX_AGE = 10.0  # seconds — stale if Kotlin side has stopped writing
 
 
 class RadioSensor:
@@ -94,6 +101,18 @@ class RadioSensor:
         return None
 
     @staticmethod
+    def _read_gnss_cn0_file() -> Optional[float]:
+        """Read chipset C/N₀ written by Kotlin GnssMeasurementsEvent callback.
+        Returns None if the file is missing or stale (Kotlin side not running)."""
+        try:
+            age = time.time() - os.stat(_GNSS_CN0_FILE).st_mtime
+            if age > _GNSS_CN0_MAX_AGE:
+                return None
+            return float(open(_GNSS_CN0_FILE).read().strip())
+        except Exception:
+            return None
+
+    @staticmethod
     def _read_dumpsys() -> Optional[float]:
         try:
             r = subprocess.run(
@@ -140,9 +159,14 @@ class RadioSensor:
         cn0 = None
 
         if config.IS_ANDROID:
-            with self._cache_lock:
-                if self._cached_cn0 is not None and (time.time() - self._cache_time) < 30:
-                    cn0 = self._cached_cn0
+            # Priority 1: real chipset C/N₀ via Kotlin GnssMeasurementsEvent
+            cn0 = self._read_gnss_cn0_file()
+            # Priority 2: termux-location (Termux only, harmless no-op in Chaquopy)
+            if cn0 is None:
+                with self._cache_lock:
+                    if self._cached_cn0 is not None and (time.time() - self._cache_time) < 30:
+                        cn0 = self._cached_cn0
+            # Priority 3: WiFi SNR proxy (2.4 GHz correlation, not GPS-band)
             if cn0 is None:
                 cn0 = self._read_dumpsys()
 
