@@ -1,0 +1,34 @@
+Aero·SIGINT is a passive electronic warfare early-warning system that detects GPS jamming, GPS spoofing, and nearby drone surveillance using sensors already built into any standard Android phone.
+
+Designed for non-technical users in high-risk environments — conflict zones, border regions, and areas with documented electronic warfare activity.
+
+WHAT IT DETECTS
+
+• GPS Jamming — satellite signals are being blocked, your location cannot be trusted
+• GPS Spoofing — fake GPS signals are making your phone think it is somewhere else
+• Drone Surveillance — unknown wireless devices are scanning the area nearby
+• EMF Anomaly — unusual magnetic field detected near you
+
+ADAPTIVE LOCAL BASELINE
+
+In areas where jamming is constant (Gaza, Lebanon, Ukraine), a fixed alarm threshold becomes meaningless. The app learns what is normal for your specific location and alerts you when the level escalates significantly above it — showing "+18% above local normal" rather than just a raw score.
+
+KEY FEATURES
+
+• Alarm fires with screen off — Android foreground service monitors continuously
+• SILENCE button — mutes alarm sound for 5 minutes without dismissing the warning
+• Languages: English, Arabic (RTL), Farsi/Persian (RTL), Ukrainian
+• Stealth cover UI — shows a fake battery app when the real UI could attract attention
+• 24-hour event log and activity pattern heatmap
+• System diagnostic — checks service, battery, GPS lock, permissions at a glance
+• Low-power mode — ~50% less battery usage
+• No internet required after installation
+• No accounts, no analytics, no data sent anywhere
+
+PRIVACY
+
+All processing is on-device. Event logs stay on local phone storage only. The only optional outbound connection is to NTP servers for time integrity checking, which can be disabled.
+
+LIMITATIONS
+
+This app detects interference — it cannot stop it or predict what follows. Indoors without GPS lock, jamming detection is reduced. The baseline takes 10 minutes to calibrate after first install.

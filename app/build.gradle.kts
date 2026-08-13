@@ -49,6 +49,13 @@ chaquopy {
     }
 }
 
+// Exclude io.opencensus telemetry pulled in transitively by Chaquopy.
+// These are flagged as trackers by F-Droid/Exodus. The app does not use
+// any telemetry or remote observability — excluding these has no runtime effect.
+configurations.all {
+    exclude(group = "io.opencensus")
+}
+
 dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("androidx.webkit:webkit:1.8.0")

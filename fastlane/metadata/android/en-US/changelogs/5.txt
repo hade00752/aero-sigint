@@ -1,0 +1,7 @@
+v0.5.0 — Adaptive baseline, 4-language support, in-app alarm mute, self-diagnostic
+
+• Adaptive local baseline: learns normal jamming level for your location so alerts are meaningful in high-EW environments
+• SILENCE button: mute alarm sound for 5 minutes without dismissing the warning
+• Languages: Arabic, Farsi/Persian (RTL), Ukrainian added alongside English
+• Self-diagnostic panel: checks service, battery, GPS lock, and permissions
+• Alarm now fires independently of the Python layer if Android kills the service
