@@ -1,0 +1,53 @@
+Categories:
+  - Security
+  - Navigation
+
+License: GPL-3.0-only
+
+WebSite: https://github.com/hade00752/aero-sigint
+SourceCode: https://github.com/hade00752/aero-sigint
+IssueTracker: https://github.com/hade00752/aero-sigint/issues
+
+Name: Aero·SIGINT
+AutoName: AeroSIGINT
+
+Summary: Passive GPS jamming and spoofing early warning for civilians
+Description: |-
+  Aero·SIGINT is a passive electronic warfare early-warning system that detects
+  GPS jamming, GPS spoofing, and nearby drone surveillance activity using sensors
+  built into any standard Android phone.
+
+  Designed for non-technical users in high-risk environments — conflict zones,
+  border regions, and areas with documented electronic warfare activity.
+
+  Features:
+  * GPS jamming detection via GNSS chipset C/N₀ and satellite count
+  * GPS spoofing detection via coordinate jump analysis
+  * Adaptive local baseline — learns what is normal for your location so alarm
+    fatigue is reduced in areas with persistent background interference
+  * In-app alarm mute (5 minutes) without dismissing the warning
+  * Full translations in English, Arabic (RTL), Farsi/Persian (RTL), Ukrainian
+  * Stealth cover UI (fake battery app) for sensitive environments
+  * 24-hour event log and activity pattern heatmap
+  * System diagnostic screen
+  * Low-power mode (~50% less battery)
+  * Works with screen off, no internet required, no data sent anywhere
+
+  No root required. All processing is on-device. No accounts, no analytics,
+  no network connections except optional NTP time integrity checks.
+
+RepoType: git
+Repo: https://github.com/hade00752/aero-sigint
+
+Builds:
+  - versionName: '0.5.0'
+    versionCode: 5
+    commit: cd9f3c3
+    subdir: BatteryHealth
+    gradle:
+      - release
+
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: '0.5.0'
+CurrentVersionCode: 5
