@@ -1,8 +1,8 @@
 'use strict';
 const STATUS_CFG={
   CLEAR:{a:'#00c6ff',b:'#0072ff',c:'#00f2fe',g:'rgba(0,198,255,.55)',ah:'200',label:'SAFE',sub:'All signals normal',cls:''},
-  DISTURBED:{a:'#f5a623',b:'#c8841a',c:'#ffd580',g:'rgba(245,166,35,.5)',ah:'35',label:'WARNING',sub:'Anomaly detected — stay alert',cls:'disturbed'},
-  CRITICAL:{a:'#ff3b3b',b:'#cc0000',c:'#ff8080',g:'rgba(255,59,59,.6)',ah:'0',label:'DANGER',sub:'Active threat — take action now',cls:'critical'},
+  DISTURBED:{a:'#f5a623',b:'#c8841a',c:'#ffd580',g:'rgba(245,166,35,.5)',ah:'35',label:'WARNING',sub:'Signal interference detected — stay alert',cls:'disturbed'},
+  CRITICAL:{a:'#ff3b3b',b:'#cc0000',c:'#ff8080',g:'rgba(255,59,59,.6)',ah:'0',label:'DANGER',sub:'GPS compromised — seek cover now',cls:'critical'},
 };
 let _cur='CLEAR';
 
@@ -64,13 +64,13 @@ function updateDetail(d){
 }
 
 const PLAIN={
-  'RF JAMMING':'Radio signals are being jammed',
-  'ACTIVE_SUPPRESSION':'High-energy interference source nearby',
-  'TIME WARP':'GPS time is being manipulated',
-  'TELEPORT':'Your location data jumped suddenly',
-  'PROBE FLOOD':'Multiple unknown devices scanning nearby',
-  'SIGNAL LOSS':'Signal lost — possible obstruction',
-  'EMF ANOMALY':'Unusual magnetic field detected',
+  'RF JAMMING':'GPS signals are being jammed — comms may fail',
+  'ACTIVE_SUPPRESSION':'High-power jamming source detected nearby',
+  'TIME WARP':'GPS clock is being manipulated — position unreliable',
+  'TELEPORT':'Location jumped suddenly — GPS may be spoofed',
+  'PROBE FLOOD':'Unknown devices scanning nearby — possible surveillance',
+  'SIGNAL LOSS':'GPS signal lost — obstruction or jamming',
+  'EMF ANOMALY':'Unusual magnetic field detected nearby',
 };
 function translate(a){
   for(const[k,v] of Object.entries(PLAIN)){if(a.includes(k))return v;}
@@ -122,7 +122,7 @@ function toggleDetail(){
 function switchTab(t){
   const app=document.getElementById('app');
   if(app) app.style.display=t==='live'?'flex':'none';
-  ['log','pattern'].forEach(v=>{
+  ['log','pattern','help'].forEach(v=>{
     const el=document.getElementById('view-'+v);
     if(el) el.classList.toggle('hidden',t!==v);
   });
@@ -242,7 +242,7 @@ async function boot(){
     if(r.ok){
       const d=await r.json();
       if('battery_unrestricted' in d) updateBatteryWarning(d.battery_unrestricted);
-      connectSSE();startGPS();checkBatteryStatus();return;
+      connectSSE();startGPS();checkBatteryStatus();checkLowPower();return;
     }
   }catch{}
   runDemo();
@@ -281,6 +281,47 @@ async function checkBatteryStatus() {
     }
   } catch {}
   setTimeout(checkBatteryStatus, 30000);
+}
+
+// ── Low power mode ────────────────────────────────────────────────
+let _lowPower = false;
+
+function setLowPowerUI(active) {
+  _lowPower = active;
+  const btn = document.getElementById('lp-btn');
+  if (!btn) return;
+  btn.textContent = active ? 'POWER: LOW' : 'POWER: NORMAL';
+  btn.classList.toggle('lp-active', active);
+}
+
+async function toggleLowPower() {
+  try {
+    const r = await fetch('/lowpower', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({enabled: !_lowPower})
+    });
+    if (r.ok) { const d = await r.json(); setLowPowerUI(d.low_power); }
+  } catch {}
+}
+
+async function checkLowPower() {
+  try {
+    const r = await fetch('/lowpower', {signal: AbortSignal.timeout(2000)});
+    if (r.ok) { const d = await r.json(); setLowPowerUI(d.low_power); }
+  } catch {}
+}
+
+// ── Test alarm ────────────────────────────────────────────────────
+async function testAlarm() {
+  const btn = document.getElementById('alarm-btn');
+  if (btn) { btn.textContent = 'FIRING...'; btn.disabled = true; }
+  try {
+    await fetch('/test-alarm', {method: 'POST'});
+  } catch {}
+  setTimeout(() => {
+    if (btn) { btn.textContent = 'TEST ALARM'; btn.disabled = false; }
+  }, 3000);
 }
 
 window.addEventListener('load', () => { setTimeout(boot, 600); });

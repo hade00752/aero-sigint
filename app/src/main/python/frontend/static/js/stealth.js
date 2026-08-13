@@ -5,25 +5,11 @@
 
 const STEALTH_STORAGE_KEY = 'sigint_stealth';
 let _stealthActive = false;
-let _tapCount = 0;
-let _tapTimer = null;
 let _lastReading = null;
 
-// ── Activation listener ───────────────────────────────────────────
+// ── Deactivation listener (exit stealth mode via triple-tap on stealth orb) ──
+// Activation is handled in dashboard.js (triple-tap main orb or brand).
 document.addEventListener('DOMContentLoaded', () => {
-  const brand = document.getElementById('brand-text');
-  if (brand) {
-    brand.addEventListener('click', () => {
-      _tapCount++;
-      clearTimeout(_tapTimer);
-      _tapTimer = setTimeout(() => { _tapCount = 0; }, 800);
-      if (_tapCount >= 3) {
-        _tapCount = 0;
-        toggleStealth(true);
-      }
-    });
-  }
-
   const stealthOrb = document.getElementById('stealth-orb');
   if (stealthOrb) {
     let stealthTaps = 0, stealthTimer = null;

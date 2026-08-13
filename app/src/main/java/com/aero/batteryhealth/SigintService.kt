@@ -13,7 +13,14 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.GnssMeasurement
 import android.location.GnssMeasurementsEvent
+import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -31,6 +38,14 @@ class SigintService : Service(), SensorEventListener {
     private var sensorManager: SensorManager? = null
     private var magnetometer: Sensor? = null
 
+    // Keeps GPS chipset alive so GnssMeasurementsEvent.Callback receives data.
+    private val locationListener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {}
+    }
+
+    private var currentLowPower = false
+    private var alarmPlayer: MediaPlayer? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -39,6 +54,7 @@ class SigintService : Service(), SensorEventListener {
         startMagnetometer()
         startGnssMeasurements()
         startAlertMonitor()
+        startLowPowerMonitor()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -48,6 +64,7 @@ class SigintService : Service(), SensorEventListener {
     override fun onDestroy() {
         super.onDestroy()
         gnssCallback?.let { locationManager?.unregisterGnssMeasurementsCallback(it) }
+        locationManager?.removeUpdates(locationListener)
         sensorManager?.unregisterListener(this)
     }
 
@@ -124,6 +141,8 @@ class SigintService : Service(), SensorEventListener {
             }
             gnssCallback = cb
             lm.registerGnssMeasurementsCallback(cb, Handler(Looper.getMainLooper()))
+            // Keep chipset awake — measurements only flow while a location request is active
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 0f, locationListener)
         } catch (e: Exception) {
             // SecurityException if location permission not yet granted — Python
             // falls through to dumpsys wifi until the permission is granted.
@@ -147,7 +166,75 @@ class SigintService : Service(), SensorEventListener {
         } catch (_: Exception) {}
     }
 
-    // ── Alert monitor — fires alarm when Python declares CRITICAL ─────────────
+    // ── Low power mode monitor ────────────────────────────────────────────────
+    // Checks low_power.txt every 60s. When the mode changes it re-registers
+    // the GPS provider and magnetometer at a slower rate to save battery.
+
+    private fun startLowPowerMonitor() {
+        Thread {
+            while (true) {
+                Thread.sleep(60_000L)
+                val lp = isLowPowerMode()
+                if (lp != currentLowPower) {
+                    currentLowPower = lp
+                    adjustGpsInterval(lp)
+                    adjustMagnetometerRate(lp)
+                }
+            }
+        }.also { it.isDaemon = true }.start()
+    }
+
+    private fun isLowPowerMode(): Boolean = try {
+        File(filesDir, "low_power.txt").readText().trim() == "true"
+    } catch (_: Exception) { false }
+
+    private fun adjustGpsInterval(lowPower: Boolean) {
+        try {
+            val lm = locationManager ?: return
+            lm.removeUpdates(locationListener)
+            lm.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                if (lowPower) 15_000L else 2_000L,
+                0f, locationListener
+            )
+        } catch (_: Exception) {}
+    }
+
+    private fun adjustMagnetometerRate(lowPower: Boolean) {
+        try {
+            val sm = sensorManager ?: return
+            val mag = magnetometer ?: return
+            sm.unregisterListener(this, mag)
+            sm.registerListener(this, mag,
+                if (lowPower) 2_000_000 else SensorManager.SENSOR_DELAY_NORMAL)
+        } catch (_: Exception) {}
+    }
+
+    // ── Direct sensor file check (no Flask / Python dependency) ──────────────
+    // Reads the files SigintService itself writes. If Python crashes, this
+    // still fires the alarm — a zero-satellite count or extreme field alone
+    // is enough evidence to wake the user.
+
+    private fun checkDirectCritical(): Boolean {
+        val now = System.currentTimeMillis()
+        try {
+            val f = File(filesDir, "satellite_count.txt")
+            if (now - f.lastModified() < 15_000L && f.readText().trim().toIntOrNull() == 0)
+                return true
+        } catch (_: Exception) {}
+        try {
+            val f = File(filesDir, "mag_reading.txt")
+            if (now - f.lastModified() < 15_000L) {
+                val mag = f.readText().trim().split(",").getOrNull(3)?.toFloatOrNull()
+                if (mag != null && mag > 120f) return true
+            }
+        } catch (_: Exception) {}
+        return false
+    }
+
+    // ── Alert monitor ─────────────────────────────────────────────────────────
+    // Polls every 2s (10s in low-power). Also checks sensor files directly so
+    // alarms fire even if Flask / Python are not running.
 
     private fun startAlertMonitor() {
         Thread {
@@ -155,33 +242,59 @@ class SigintService : Service(), SensorEventListener {
             var tick = 0
             writeBatteryStatus()
             while (true) {
-                if (tick++ % 30 == 0) writeBatteryStatus()  // recheck every 60 s
+                val lowPower = isLowPowerMode()
+                val pollMs = if (lowPower) 10_000L else 2_000L
+                if (tick++ % (if (lowPower) 6 else 30) == 0) writeBatteryStatus()
+
+                // Test alarm trigger: write test_alarm.txt via /test-alarm endpoint
+                val testFile = File(filesDir, "test_alarm.txt")
+                if (testFile.exists()) {
+                    testFile.delete()
+                    if (!alarmActive) { fireAlarm(); alarmActive = true }
+                }
+
+                val directCritical = checkDirectCritical()
+                var flaskCritical = false
                 try {
                     val conn = URL("http://127.0.0.1:8080/state").openConnection() as HttpURLConnection
                     conn.connectTimeout = 1000
                     conn.readTimeout = 1000
                     val body = conn.inputStream.bufferedReader().readText()
                     conn.disconnect()
-                    val status = JSONObject(body).optString("status", "CLEAR")
-                    if (status == "CRITICAL" && !alarmActive) {
-                        fireAlarm()
-                        alarmActive = true
-                    } else if (status != "CRITICAL" && alarmActive) {
-                        cancelAlarm()
-                        alarmActive = false
-                    }
-                } catch (_: Exception) {
-                    // Flask not up yet, or bridge unreachable — silent retry
+                    flaskCritical = JSONObject(body).optString("status", "CLEAR") == "CRITICAL"
+                } catch (_: Exception) {}
+
+                val isCritical = directCritical || flaskCritical
+                if (isCritical && !alarmActive) {
+                    fireAlarm(); alarmActive = true
+                } else if (!isCritical && alarmActive) {
+                    cancelAlarm(); alarmActive = false
                 }
-                Thread.sleep(2000)
+                Thread.sleep(pollMs)
             }
         }.also { it.isDaemon = true }.start()
     }
 
     private fun fireAlarm() {
-        val channelId = "sigint_alarm"
+        // Channel ID is versioned — Android caches channel settings permanently on
+        // first creation and ignores subsequent changes. Bumping the ID forces a
+        // fresh channel with sound + DND bypass baked in from the first install.
+        val channelId = "sigint_alarm_v3"
         val nm = getSystemService(NotificationManager::class.java)
-        val vibrationPattern = longArrayOf(0, 600, 200, 600, 200, 600)
+        val vibrationPattern = longArrayOf(0, 800, 200, 800, 200, 800)
+
+        // Delete stale channel versions so they don't clutter system settings
+        nm.deleteNotificationChannel("sigint_alarm")
+        nm.deleteNotificationChannel("sigint_alarm_v2")
+
+        val alarmUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+        val audioAttr = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ALARM)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
 
         nm.createNotificationChannel(
             NotificationChannel(channelId, "SIGINT Alarm", NotificationManager.IMPORTANCE_MAX).apply {
@@ -190,6 +303,7 @@ class SigintService : Service(), SensorEventListener {
                 setVibrationPattern(vibrationPattern)
                 setBypassDnd(true)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(alarmUri, audioAttr)
             }
         )
 
@@ -202,20 +316,58 @@ class SigintService : Service(), SensorEventListener {
         )
 
         val notification = Notification.Builder(this, channelId)
-            .setContentTitle("⚠ RF JAMMING DETECTED")
-            .setContentText("GPS signal compromised — possible strike precursor. Seek cover.")
+            .setContentTitle("⚠ GPS JAMMING DETECTED")
+            .setContentText("GPS signal compromised — seek cover now.")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setFullScreenIntent(pi, true)
             .setVibrate(vibrationPattern)
+            .setSound(alarmUri)
             .setOngoing(true)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setCategory(Notification.CATEGORY_ALARM)
             .build()
 
         nm.notify(2, notification)
+        playAlarmSound()
+    }
+
+    private fun playAlarmSound() {
+        try {
+            stopAlarmSound()
+
+            // Request audio focus on the ALARM stream — without this Android
+            // silences the sound regardless of volume settings.
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            @Suppress("DEPRECATION")
+            am.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+            alarmPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                setDataSource(applicationContext, uri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopAlarmSound() {
+        try { alarmPlayer?.stop(); alarmPlayer?.release(); alarmPlayer = null } catch (_: Exception) {}
     }
 
     private fun cancelAlarm() {
+        stopAlarmSound()
         getSystemService(NotificationManager::class.java).cancel(2)
     }
 }

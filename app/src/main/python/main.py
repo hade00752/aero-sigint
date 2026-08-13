@@ -38,7 +38,18 @@ def start_daemon():
     except Exception as e:
         log(f"DAEMON ERROR: {traceback.format_exc()}")
 
+def start_gps_ws():
+    try:
+        time.sleep(3)
+        log("importing gps_poller...")
+        from backend.sensors.gps_poller import run_ws_server
+        log("gps_poller imported ok — starting WS server on port 9001")
+        run_ws_server()
+    except Exception as e:
+        log(f"GPS WS ERROR: {traceback.format_exc()}")
+
 threading.Thread(target=start_daemon, daemon=True).start()
+threading.Thread(target=start_gps_ws, daemon=True).start()
 log("threads started")
 
 # Bridge runs on the main thread (non-daemon) so the process stays alive for

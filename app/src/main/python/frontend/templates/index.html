@@ -20,7 +20,7 @@
   <header id="topbar">
     <div>
       <div class="brand" id="brand">AERO·<span>SIGINT</span></div>
-      <div id="nid">NODE Ø1 · PASSIVE EW MONITOR</div>
+      <div id="nid">NODE 01 · FIELD MONITOR</div>
     </div>
     <div id="dot"></div>
   </header>
@@ -52,7 +52,8 @@
           <line x1="12" y1="8" x2="12" y2="16"/>
         </svg>
       </div>
-      <div class="tc-label">Signal<br>Jamming</div>
+      <div class="tc-label">GPS<br>Jamming</div>
+      <div class="tc-desc">signals blocked</div>
       <div class="tc-val" id="v-jam">0<span style="font-size:12px;opacity:.6">%</span></div>
       <div class="tc-status safe-badge" id="s-jam">Clear</div>
     </div>
@@ -64,7 +65,8 @@
           <path d="M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>
         </svg>
       </div>
-      <div class="tc-label">Location<br>Spoofing</div>
+      <div class="tc-label">GPS<br>Spoofing</div>
+      <div class="tc-desc">position faked</div>
       <div class="tc-val" id="v-spoof">0<span style="font-size:12px;opacity:.6">%</span></div>
       <div class="tc-status safe-badge" id="s-spoof">Clear</div>
     </div>
@@ -76,7 +78,8 @@
           <path d="M2 12l10 5 10-5"/>
         </svg>
       </div>
-      <div class="tc-label">Drone<br>Activity</div>
+      <div class="tc-label">Drone<br>Surveillance</div>
+      <div class="tc-desc">unknown probes</div>
       <div class="tc-val" id="v-probe">0<span style="font-size:12px;opacity:.6">%</span></div>
       <div class="tc-status safe-badge" id="s-probe">Clear</div>
     </div>
@@ -84,36 +87,36 @@
 
   <div id="summary" onclick="toggleDetail()" style="cursor:pointer">
     <div class="sum-item">
-      <div class="sum-lbl">Signal</div>
+      <div class="sum-lbl">GPS Signal</div>
       <div class="sum-val" id="su-cn0">—</div>
     </div>
     <div class="sum-divider"></div>
     <div class="sum-item">
-      <div class="sum-lbl">Field</div>
+      <div class="sum-lbl">Mag Field</div>
       <div class="sum-val" id="su-emf">—</div>
     </div>
     <div class="sum-divider"></div>
     <div class="sum-item">
-      <div class="sum-lbl">Location</div>
+      <div class="sum-lbl">Position</div>
       <div class="sum-val" id="su-gps">OK</div>
     </div>
     <div class="sum-divider"></div>
     <div class="sum-item">
-      <div class="sum-lbl">Devices</div>
+      <div class="sum-lbl">Probes</div>
       <div class="sum-val" id="su-dev">—</div>
     </div>
     <div style="font-size:8px;color:rgba(120,160,220,.45);letter-spacing:.1em">TAP FOR DETAILS</div>
   </div>
 
   <div id="detail">
-    <div class="d-item"><div class="d-lbl">C/N₀</div><div class="d-val" id="d-cn0">—</div></div>
-    <div class="d-item"><div class="d-lbl">Δ Time</div><div class="d-val" id="d-td">—</div></div>
-    <div class="d-item"><div class="d-lbl">Coord Δ</div><div class="d-val" id="d-cj">—</div></div>
-    <div class="d-item"><div class="d-lbl">µT Field</div><div class="d-val" id="d-mag">—</div></div>
+    <div class="d-item"><div class="d-lbl">GPS Signal</div><div class="d-val" id="d-cn0">—</div></div>
+    <div class="d-item"><div class="d-lbl">Clock Drift</div><div class="d-val" id="d-td">—</div></div>
+    <div class="d-item"><div class="d-lbl">Pos Jump</div><div class="d-val" id="d-cj">—</div></div>
+    <div class="d-item"><div class="d-lbl">Mag Field</div><div class="d-val" id="d-mag">—</div></div>
     <div class="d-item"><div class="d-lbl">EMF Conf</div><div class="d-val" id="d-emf">—</div></div>
-    <div class="d-item"><div class="d-lbl">EMF Src</div><div class="d-val" id="d-src">—</div></div>
-    <div class="d-item"><div class="d-lbl">Probes/m</div><div class="d-val" id="d-pr">—</div></div>
-    <div class="d-item"><div class="d-lbl">Fused J</div><div class="d-val" id="d-fj">—</div></div>
+    <div class="d-item"><div class="d-lbl">EMF Source</div><div class="d-val" id="d-src">—</div></div>
+    <div class="d-item"><div class="d-lbl">Probes/min</div><div class="d-val" id="d-pr">—</div></div>
+    <div class="d-item"><div class="d-lbl">Jam Score</div><div class="d-val" id="d-fj">—</div></div>
   </div>
 
   <div id="wfw"><div id="wf" style="width:100%;height:56px;display:flex;align-items:stretch;gap:1px;background:rgba(6,13,26,.88);border-radius:0 0 14px 14px"></div></div>
@@ -131,9 +134,15 @@
     <button class="tab active" data-tab="live" onclick="switchTab('live')">LIVE</button>
     <button class="tab" data-tab="log" onclick="switchTab('log')">24H LOG</button>
     <button class="tab" data-tab="pattern" onclick="switchTab('pattern')">PATTERN</button>
+    <button class="tab" data-tab="help" onclick="switchTab('help')">GUIDE</button>
   </nav>
 
   <div id="ts">––:––:–– UTC</div>
+
+  <div id="ctrl">
+    <button id="lp-btn" class="ctrl-btn" onclick="toggleLowPower()">POWER: NORMAL</button>
+    <button id="alarm-btn" class="ctrl-btn" onclick="testAlarm()">TEST ALARM</button>
+  </div>
 </div>
 
 <!-- PLAYBACK VIEW -->
@@ -155,6 +164,87 @@
   <button class="view-back" onclick="switchTab('live')" style="background:rgba(0,198,255,.15);border:1px solid #00c6ff;border-radius:10px;color:#00c6ff;font-size:12px;letter-spacing:.1em;padding:10px 20px;cursor:pointer;margin-bottom:10px;">← BACK TO LIVE</button>
   <canvas id="heatmap-canvas"></canvas>
   <div id="heatmap-legend"></div>
+</div>
+
+<!-- HELP / USER GUIDE VIEW -->
+<div id="view-help" class="view hidden">
+  <div class="view-header">
+    <span class="view-title">FIELD GUIDE</span>
+    <span class="view-badge">offline · no internet needed</span>
+  </div>
+  <button class="view-back" onclick="switchTab('live')">← BACK TO LIVE</button>
+
+  <div class="help-section">
+    <div class="help-title">WHAT THE COLOURS MEAN</div>
+    <div class="help-card help-safe">
+      <div class="help-card-head">SAFE — Blue</div>
+      <div class="help-card-body">GPS is working normally. No interference detected. Keep the app running in the background.</div>
+    </div>
+    <div class="help-card help-warn">
+      <div class="help-card-head">WARNING — Orange</div>
+      <div class="help-card-body">Something is interfering with GPS. Your location on maps may be slightly wrong. Stay aware. Do not rely on navigation.</div>
+    </div>
+    <div class="help-card help-danger">
+      <div class="help-card-head">DANGER — Red</div>
+      <div class="help-card-body">GPS is being actively jammed or faked. <strong>Do not trust your phone's location or any map directions.</strong> Note physical landmarks now. Move to a reinforced building or underground if possible. Tell others nearby.</div>
+    </div>
+  </div>
+
+  <div class="help-section">
+    <div class="help-title">WHAT EACH THREAT MEANS</div>
+    <div class="help-card">
+      <div class="help-card-head">GPS Jamming</div>
+      <div class="help-card-body">Radio signals from satellites are being blocked. Your GPS stops working or shows the wrong place. Maps and navigation are unreliable. Common before air strikes — jammers are used to blind guided weapons.</div>
+    </div>
+    <div class="help-card">
+      <div class="help-card-head">GPS Spoofing</div>
+      <div class="help-card-body">Fake GPS signals are making your phone think it is somewhere else — sometimes hundreds of kilometres away. If your phone suddenly shows you at an airport, a sea, or a different city, your GPS is being spoofed. Do not follow navigation.</div>
+    </div>
+    <div class="help-card">
+      <div class="help-card-head">Drone Surveillance</div>
+      <div class="help-card-body">Unknown wireless devices are actively scanning nearby. This can indicate a drone or surveillance vehicle searching for active phones. Reduce your wireless footprint: turn off WiFi and Bluetooth if safe to do so.</div>
+    </div>
+  </div>
+
+  <div class="help-section">
+    <div class="help-title">WHAT THE READINGS MEAN</div>
+    <div class="help-row"><span class="help-lbl">GPS Signal</span><span class="help-desc">Satellite signal strength. Above 35 is normal. Below 25 means jamming or no sky view.</span></div>
+    <div class="help-row"><span class="help-lbl">Mag Field</span><span class="help-desc">Magnetic field around you. A sudden spike means a large electrical jammer or interference device is close by.</span></div>
+    <div class="help-row"><span class="help-lbl">Pos Jump</span><span class="help-desc">How far your GPS location jumped in one second. More than 500 metres in a single jump means your GPS is being spoofed.</span></div>
+    <div class="help-row"><span class="help-lbl">Clock Drift</span><span class="help-desc">Difference between GPS time and real time. More than 1 second means GPS time signals are being tampered with.</span></div>
+    <div class="help-row"><span class="help-lbl">EMF Conf</span><span class="help-desc">How confident the app is that the magnetic spike is real interference, not just a passing vehicle or appliance.</span></div>
+    <div class="help-row"><span class="help-lbl">Jam Score</span><span class="help-desc">Combined threat level from all sensors. Above 70 triggers the DANGER alarm.</span></div>
+  </div>
+
+  <div class="help-section">
+    <div class="help-title">WHEN THE ALARM FIRES</div>
+    <div class="help-card help-danger">
+      <div class="help-card-body">
+        <strong>1.</strong> Do not panic. The alarm means a threat is detected — not that a strike is certain.<br><br>
+        <strong>2.</strong> Do not use GPS navigation. Look at real physical landmarks.<br><br>
+        <strong>3.</strong> Move away from open areas. Seek a reinforced building, basement, or underground space.<br><br>
+        <strong>4.</strong> Tell others nearby. They may not have this app.<br><br>
+        <strong>5.</strong> The alarm keeps sounding until the threat drops. When it stops, check the LIVE screen before moving.
+      </div>
+    </div>
+  </div>
+
+  <div class="help-section">
+    <div class="help-title">KEEPING THE APP WORKING</div>
+    <div class="help-row"><span class="help-lbl">Battery warning</span><span class="help-desc">If the orange banner appears at the top, tap it and set the app to Unrestricted. Android will otherwise kill it when the screen is off.</span></div>
+    <div class="help-row"><span class="help-lbl">Low power mode</span><span class="help-desc">Tap POWER: NORMAL at the bottom to switch to LOW. Uses ~50% less battery. Alerts take up to 10 seconds instead of 2.</span></div>
+    <div class="help-row"><span class="help-lbl">Test the alarm</span><span class="help-desc">Tap TEST ALARM to confirm the sound and vibration work on your device before you need them.</span></div>
+    <div class="help-row"><span class="help-lbl">No internet needed</span><span class="help-desc">Once installed, the app works completely offline. All detection happens on your phone.</span></div>
+  </div>
+
+  <div class="help-section">
+    <div class="help-title">LIMITATIONS — READ THIS</div>
+    <div class="help-card" style="border-color:rgba(245,166,35,.3)">
+      <div class="help-card-body" style="color:rgba(255,255,255,.7)">
+        This app <strong>detects</strong> interference — it cannot stop it. It warns you when GPS jamming starts, not before it starts. Always be aware of your surroundings and follow official guidance from local authorities. This app is a last-resort tool, not a replacement for evacuation orders or official warnings.
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- STEALTH OVERLAY -->

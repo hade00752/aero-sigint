@@ -18,6 +18,17 @@ config.IS_REAL = True
 from backend.sensors._android_sensor import AndroidSensor
 from backend.utils.blackbox import BlackBox
 
+_LOW_POWER_FILE = '/data/data/com.aero.batteryhealth/files/low_power.txt'
+
+
+def _poll_interval() -> float:
+    try:
+        if open(_LOW_POWER_FILE).read().strip() == 'true':
+            return 10.0
+    except Exception:
+        pass
+    return 2.0
+
 
 def _broadcast(sock, payload):
     sock.sendto(json.dumps(payload).encode(), (config.UDP_HOST, config.UDP_PORT))
@@ -44,7 +55,7 @@ def run():
             traceback.print_exc()
 
         elapsed = time.monotonic() - t0
-        time.sleep(max(0.1, 2.0 - elapsed))
+        time.sleep(max(0.1, _poll_interval() - elapsed))
 
 
 if __name__ == "__main__":

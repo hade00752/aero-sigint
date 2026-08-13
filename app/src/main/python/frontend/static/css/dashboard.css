@@ -67,6 +67,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 .tc-icon{width:28px;height:28px;display:flex;align-items:center;justify-content:center}
 .tc-icon svg{width:22px;height:22px}
 .tc-label{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);text-align:center;line-height:1.3}
+.tc-desc{font-size:7px;letter-spacing:.08em;text-transform:uppercase;color:rgba(120,160,220,.3);text-align:center;margin-top:-2px}
 .tc-val{font-weight:700;font-size:22px;line-height:1;transition:color .8s}
 .tc-status{font-size:9px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:6px;transition:background .8s,color .8s}
 .safe-badge{background:rgba(0,198,255,.15);color:var(--safe)}
@@ -112,6 +113,11 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 
 #ts{font-size:8px;letter-spacing:.14em;color:var(--txt3);text-align:center;flex-shrink:0}
 
+#ctrl{width:100%;max-width:440px;display:flex;gap:7px;flex-shrink:0}
+.ctrl-btn{flex:1;padding:7px 4px;background:var(--glass);border:1px solid var(--border);border-radius:11px;color:var(--txt3);font-size:8px;letter-spacing:.12em;cursor:pointer;font-family:'Courier New',monospace;font-weight:700;transition:background .3s,color .3s,border-color .3s}
+.ctrl-btn:active{opacity:.7}
+.ctrl-btn.lp-active{background:rgba(245,166,35,.12);border-color:var(--warn);color:var(--warn)}
+
 /* Views */
 .view{position:fixed;inset:0;z-index:50;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;padding:14px;gap:10px}
 .view.hidden{display:none}
@@ -135,6 +141,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 /* Heatmap */
 #heatmap-canvas{width:100%;border-radius:10px;margin-bottom:6px}
 #heatmap-legend{display:flex;gap:12px;font-size:9px;color:var(--txt3);letter-spacing:.1em}
+
+/* Help / Guide view */
+.help-section{display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.help-title{font-size:8px;letter-spacing:.2em;color:var(--txt3);text-transform:uppercase;padding:4px 0 2px;border-bottom:1px solid var(--border)}
+.help-card{background:var(--glass);border:1px solid var(--border);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+.help-card.help-safe{border-color:rgba(0,198,255,.3);background:rgba(0,198,255,.06)}
+.help-card.help-warn{border-color:rgba(245,166,35,.35);background:rgba(245,166,35,.06)}
+.help-card.help-danger{border-color:rgba(255,59,59,.35);background:rgba(255,59,59,.06)}
+.help-card-head{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--txt);text-transform:uppercase}
+.help-card-body{font-size:11px;line-height:1.6;color:rgba(200,220,255,.75)}
+.help-card-body strong{color:var(--txt);font-weight:700}
+.help-row{display:flex;flex-direction:column;gap:3px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.help-row:last-child{border-bottom:none}
+.help-lbl{font-size:9px;font-weight:700;letter-spacing:.12em;color:var(--txt2);text-transform:uppercase}
+.help-desc{font-size:11px;line-height:1.5;color:rgba(180,210,255,.65)}
 
 /* Stealth mode */
 #stealth-overlay{position:fixed;inset:0;z-index:200;background:#f5f5f7;display:flex;align-items:center;justify-content:center}

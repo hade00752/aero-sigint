@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 os.environ['SIGINT_ENV'] = 'android'
 
-from flask import Flask, Response, jsonify, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 import config
 
 
@@ -109,7 +109,9 @@ def index():
 def health():
     return jsonify({"ok": True, "ts": datetime.now(timezone.utc).isoformat()})
 
-_BATTERY_FILE = '/data/data/com.aero.batteryhealth/files/battery_unrestricted.txt'
+_BATTERY_FILE   = '/data/data/com.aero.batteryhealth/files/battery_unrestricted.txt'
+_LOW_POWER_FILE = '/data/data/com.aero.batteryhealth/files/low_power.txt'
+_TEST_ALARM_FILE = '/data/data/com.aero.batteryhealth/files/test_alarm.txt'
 
 @app.route("/state")
 def state():
@@ -121,6 +123,32 @@ def state():
     except Exception:
         data["battery_unrestricted"] = None  # file not written yet
     return jsonify(data)
+
+@app.route("/lowpower", methods=["GET"])
+def get_low_power():
+    try:
+        active = open(_LOW_POWER_FILE).read().strip() == 'true'
+    except Exception:
+        active = False
+    return jsonify({"low_power": active})
+
+@app.route("/lowpower", methods=["POST"])
+def set_low_power():
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        active = bool(body.get("enabled", False))
+        open(_LOW_POWER_FILE, 'w').write('true' if active else 'false')
+    except Exception:
+        active = False
+    return jsonify({"ok": True, "low_power": active})
+
+@app.route("/test-alarm", methods=["POST"])
+def test_alarm_route():
+    try:
+        open(_TEST_ALARM_FILE, 'w').write('1')
+    except Exception:
+        pass
+    return jsonify({"ok": True})
 
 @app.route("/debug")
 def debug():
