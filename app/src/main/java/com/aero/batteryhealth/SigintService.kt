@@ -45,6 +45,8 @@ class SigintService : Service(), SensorEventListener {
 
     private var currentLowPower = false
     private var alarmPlayer: MediaPlayer? = null
+    private var testAlarmUntil = 0L
+    private var emfBannerSentAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -211,25 +213,46 @@ class SigintService : Service(), SensorEventListener {
     }
 
     // ── Direct sensor file check (no Flask / Python dependency) ──────────────
-    // Reads the files SigintService itself writes. If Python crashes, this
-    // still fires the alarm — a zero-satellite count or extreme field alone
-    // is enough evidence to wake the user.
+    // Only satellite count == 0 warrants a full alarm without Flask confirmation.
+    // Magnetometer spikes alone are NOT alarmed — a laptop or microwave would
+    // trigger constantly. EMF gets a quiet banner via checkEMFAnomaly() instead.
 
     private fun checkDirectCritical(): Boolean {
-        val now = System.currentTimeMillis()
-        try {
+        return try {
             val f = File(filesDir, "satellite_count.txt")
-            if (now - f.lastModified() < 15_000L && f.readText().trim().toIntOrNull() == 0)
-                return true
-        } catch (_: Exception) {}
-        try {
+            System.currentTimeMillis() - f.lastModified() < 15_000L &&
+                f.readText().trim().toIntOrNull() == 0
+        } catch (_: Exception) { false }
+    }
+
+    // Returns the magnetometer magnitude if it looks like a real anomaly (>120 µT),
+    // null otherwise. Used to send a quiet informational banner, not an alarm.
+    private fun checkEMFAnomaly(): Float? {
+        return try {
             val f = File(filesDir, "mag_reading.txt")
-            if (now - f.lastModified() < 15_000L) {
-                val mag = f.readText().trim().split(",").getOrNull(3)?.toFloatOrNull()
-                if (mag != null && mag > 120f) return true
+            if (System.currentTimeMillis() - f.lastModified() > 15_000L) return null
+            val mag = f.readText().trim().split(",").getOrNull(3)?.toFloatOrNull()
+            if (mag != null && mag > 120f) mag else null
+        } catch (_: Exception) { null }
+    }
+
+    private fun sendEMFBanner(magnitudeUt: Float) {
+        val channelId = "sigint_emf"
+        val nm = getSystemService(NotificationManager::class.java)
+        nm.createNotificationChannel(
+            NotificationChannel(channelId, "Field Monitor", NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "Unusual field and signal alerts"
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setSound(null, null)
             }
-        } catch (_: Exception) {}
-        return false
+        )
+        val notification = Notification.Builder(this, channelId)
+            .setContentTitle("Unusual Magnetic Field")
+            .setContentText("Strong field nearby (${magnitudeUt.toInt()} µT) — interference source detected")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(3, notification)
     }
 
     // ── Alert monitor ─────────────────────────────────────────────────────────
@@ -246,11 +269,21 @@ class SigintService : Service(), SensorEventListener {
                 val pollMs = if (lowPower) 10_000L else 2_000L
                 if (tick++ % (if (lowPower) 6 else 30) == 0) writeBatteryStatus()
 
-                // Test alarm trigger: write test_alarm.txt via /test-alarm endpoint
+                // Test alarm: set a timed window so the alarm plays for 8s before
+                // auto-cancelling. Without this the loop immediately calls cancelAlarm()
+                // because isCritical is false on the very next iteration.
                 val testFile = File(filesDir, "test_alarm.txt")
                 if (testFile.exists()) {
                     testFile.delete()
-                    if (!alarmActive) { fireAlarm(); alarmActive = true }
+                    testAlarmUntil = System.currentTimeMillis() + 8_000L
+                }
+                val testActive = System.currentTimeMillis() < testAlarmUntil
+
+                // EMF anomaly → quiet banner only, not an alarm
+                val emfMag = checkEMFAnomaly()
+                if (emfMag != null && System.currentTimeMillis() - emfBannerSentAt > 120_000L) {
+                    sendEMFBanner(emfMag)
+                    emfBannerSentAt = System.currentTimeMillis()
                 }
 
                 val directCritical = checkDirectCritical()
@@ -264,7 +297,7 @@ class SigintService : Service(), SensorEventListener {
                     flaskCritical = JSONObject(body).optString("status", "CLEAR") == "CRITICAL"
                 } catch (_: Exception) {}
 
-                val isCritical = directCritical || flaskCritical
+                val isCritical = testActive || directCritical || flaskCritical
                 if (isCritical && !alarmActive) {
                     fireAlarm(); alarmActive = true
                 } else if (!isCritical && alarmActive) {
