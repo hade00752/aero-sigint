@@ -36,8 +36,17 @@ _ANDROID_BASELINE_SAMPLES = 8
 
 # Written by SigintService.startGnssMeasurements() via GnssMeasurementsEvent.Callback.
 # Updated on every satellite measurement event (typically every second).
-_GNSS_CN0_FILE = "/data/data/com.aero.batteryhealth/files/gnss_cn0.txt"
+_GNSS_CN0_FILE    = "/data/data/com.aero.batteryhealth/files/gnss_cn0.txt"
 _GNSS_CN0_MAX_AGE = 10.0  # seconds — stale if Kotlin side has stopped writing
+
+_SAT_COUNT_FILE    = "/data/data/com.aero.batteryhealth/files/satellite_count.txt"
+_SAT_COUNT_MAX_AGE = 10.0  # seconds
+
+# Clear-sky default baseline — used when no persisted baseline exists.
+# Prevents the fatal first-run calibration-to-jammed-environment bug:
+# if the app is opened for the first time in a jammed zone, runtime sample
+# accumulation would learn the jammed level as "normal" and miss the event.
+_CLEAR_SKY_DEFAULT_CN0 = 38.0  # dBHz — typical locked-sky Android chipset value
 
 
 class RadioSensor:
@@ -53,6 +62,7 @@ class RadioSensor:
         self._cached_cn0: Optional[float] = None
         self._cache_lock = threading.Lock()
         self._cache_time: float = 0.0
+        self._prev_cn0: Optional[float] = None  # for sudden-onset detection
 
         # termux-location is only available in Termux, not a Chaquopy APK.
         # Detection runs anyway — it just returns False in the APK context.
@@ -113,6 +123,18 @@ class RadioSensor:
             return None
 
     @staticmethod
+    def _read_satellite_count() -> Optional[int]:
+        """Read locked-satellite count written by Kotlin alongside gnss_cn0.txt.
+        Zero means complete lock loss — the most definitive jamming signature."""
+        try:
+            age = time.time() - os.stat(_SAT_COUNT_FILE).st_mtime
+            if age > _SAT_COUNT_MAX_AGE:
+                return None
+            return int(open(_SAT_COUNT_FILE).read().strip())
+        except Exception:
+            return None
+
+    @staticmethod
     def _read_dumpsys() -> Optional[float]:
         try:
             r = subprocess.run(
@@ -143,7 +165,12 @@ class RadioSensor:
             self._cn0_baseline = float(data["cn0_baseline"])
             print(f"[Radio] Loaded persisted baseline: {self._cn0_baseline:.1f} dBHz")
         except Exception:
-            pass
+            # No persisted file — use clear-sky default immediately rather than
+            # accumulating runtime samples. Accumulating from runtime is dangerous:
+            # if the app first runs inside a jammed environment, it calibrates to
+            # the jammed level as "normal" and becomes blind to the event.
+            self._cn0_baseline = _CLEAR_SKY_DEFAULT_CN0
+            print(f"[Radio] No persisted baseline — using clear-sky default {_CLEAR_SKY_DEFAULT_CN0} dBHz")
 
     def _save_baseline(self):
         try:
@@ -173,24 +200,44 @@ class RadioSensor:
         if cn0 is None:
             cn0 = self._synthetic()
 
-        if self._cn0_baseline is None:
+        # Refine baseline from healthy readings. Samples below 25 dBHz are likely
+        # jammed and must never corrupt the baseline — only clear-sky values count.
+        if cn0 > 25.0:
             self._baseline_samples.append(cn0)
             n = _ANDROID_BASELINE_SAMPLES if config.IS_ANDROID else config.CN0_BASELINE_SAMPLES
             if len(self._baseline_samples) >= n:
                 self._cn0_baseline = sum(self._baseline_samples) / len(self._baseline_samples)
-                print(f"[Radio] Baseline established: {self._cn0_baseline:.1f} dBHz")
+                self._baseline_samples = []  # reset for next refinement cycle
+                print(f"[Radio] Baseline refined: {self._cn0_baseline:.1f} dBHz")
                 self._save_baseline()
 
         return cn0, None
 
     def jam_score(self, cn0: float, agc: Optional[float]) -> int:
         """0–100. agc branch only fires when real AGC is provided (Pi UBX path)."""
+        # Zero locked satellites = complete GNSS lock loss. This is the most
+        # definitive jamming signature — no threshold comparison needed.
+        sat = self._read_satellite_count()
+        if sat is not None and sat == 0:
+            self._prev_cn0 = cn0
+            return 100
+
         if self._cn0_baseline is None:
             return 0
         score = 0
         cn0_drop = self._cn0_baseline - cn0
         if cn0_drop > config.CN0_DROP_THRESHOLD:
             score += min(60, int(cn0_drop * 5))
+
+        # Sudden-onset bonus: a jammer fires and C/N₀ collapses within one 2s
+        # poll. Gradual degradation (building, valley) drops slowly over many
+        # readings. A single-reading drop >15 dBHz is a strong jammer signature.
+        if self._prev_cn0 is not None:
+            onset = self._prev_cn0 - cn0
+            if onset > 15.0:
+                score = min(100, score + int(onset * 2))
+        self._prev_cn0 = cn0
+
         # agc is None on Android — this branch never fires here
         if agc is not None:
             agc_drop = (self._cn0_baseline - 5) - agc

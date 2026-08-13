@@ -37,7 +37,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(
 @keyframes dp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
 
 /* Battery optimisation warning banner */
-#battery-warn{width:100%;max-width:440px;background:rgba(255,59,59,.1);border:1px solid rgba(255,59,59,.4);border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;animation:bwp 2.5s ease-in-out infinite}
+#battery-warn{width:100%;max-width:440px;background:rgba(255,59,59,.1);border:1px solid rgba(255,59,59,.4);border-radius:10px;padding:7px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;animation:bwp 2.5s ease-in-out infinite;cursor:pointer;-webkit-tap-highlight-color:rgba(255,59,59,.2)}
 #battery-warn.hidden{display:none}
 #battery-warn svg{width:16px;height:16px;flex-shrink:0;color:var(--danger)}
 #battery-warn-text{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--danger);line-height:1.4}

@@ -1,7 +1,9 @@
 package com.aero.batteryhealth
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.os.Handler
 import android.os.Looper
 import android.webkit.GeolocationPermissions
@@ -66,6 +68,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        webView.addJavascriptInterface(BatteryBridge(), "BatteryBridge")
+
         // Start Python backend then wait for Flask
         Thread {
             try {
@@ -75,6 +79,24 @@ class MainActivity : AppCompatActivity() {
             }
             waitForFlaskAndLoad()
         }.start()
+    }
+
+    inner class BatteryBridge {
+        @android.webkit.JavascriptInterface
+        fun openBatterySettings() {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+            } catch (_: Exception) {
+                try {
+                    startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                } catch (_: Exception) {}
+            }
+        }
     }
 
     private fun waitForFlaskAndLoad() {

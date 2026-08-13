@@ -112,11 +112,14 @@ class SigintService : Service(), SensorEventListener {
                     val cn0Values = event.measurements
                         .filter { it.state and GnssMeasurement.STATE_CODE_LOCK != 0 }
                         .mapNotNull { m -> m.cn0DbHz.takeIf { it > 0.0 } }
-                    if (cn0Values.isNotEmpty()) {
-                        try {
+                    try {
+                        // Always write count — zero means complete lock loss,
+                        // the most definitive jamming signature available.
+                        File(filesDir, "satellite_count.txt").writeText(cn0Values.size.toString())
+                        if (cn0Values.isNotEmpty()) {
                             File(filesDir, "gnss_cn0.txt").writeText(cn0Values.average().toString())
-                        } catch (_: Exception) {}
-                    }
+                        }
+                    } catch (_: Exception) {}
                 }
             }
             gnssCallback = cb

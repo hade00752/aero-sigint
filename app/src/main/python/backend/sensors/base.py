@@ -32,6 +32,12 @@ class SensorReading:
     def fused_jam_score(self) -> int:
         if self.jam_score == 0:
             return 0
+        # Military jammers operate at distance (5+ km) — no measurable EMF at
+        # the handset. When jamming is extreme (satellite lock fully lost, score
+        # at max), bypassing the EMF gate is correct. Close-range threats still
+        # benefit from EMF confirmation at lower scores.
+        if self.jam_score >= 80:
+            return self.jam_score
         emf_c = self.emf_confidence
         if emf_c >= 40:
             return self.jam_score
@@ -45,7 +51,7 @@ class SensorReading:
         fj = self.fused_jam_score
         if self.spoof_score >= 50 or self.probe_score >= 70:
             return "CRITICAL"
-        if fj >= 70 and self.emf_source == "ACTIVE_SUPPRESSION":
+        if fj >= 70:
             return "CRITICAL"
         if fj >= 40 or self.spoof_score >= 20 or self.probe_score >= 40:
             return "DISTURBED"

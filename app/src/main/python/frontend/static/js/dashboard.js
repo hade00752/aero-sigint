@@ -197,6 +197,11 @@ function startGPS(){
 // Stealth activation — triple tap brand
 let _tapCount=0,_tapTimer=null;
 document.addEventListener('DOMContentLoaded',()=>{
+  // Battery restriction banner — tap opens Android battery optimisation settings
+  document.getElementById('battery-warn')?.addEventListener('click',()=>{
+    if(window.BatteryBridge) window.BatteryBridge.openBatterySettings();
+  });
+
   // Triple tap globe for stealth
   const orb = document.getElementById('orb');
   if(orb){
