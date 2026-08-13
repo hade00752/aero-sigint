@@ -12,6 +12,8 @@ import android.hardware.SensorManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.webkit.GeolocationPermissions
+import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -72,6 +74,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
         settings.cacheMode = WebSettings.LOAD_NO_CACHE
         webView.webViewClient = WebViewClient()
+        // Without this override, setGeolocationEnabled(true) is ignored — the
+        // browser geolocation API returns PERMISSION_DENIED and GPS data never
+        // reaches Python, making time-integrity detection permanently dead.
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(
+                origin: String, callback: GeolocationPermissions.Callback
+            ) {
+                callback.invoke(origin, true, false)
+            }
+        }
 
         // Start Python backend then wait for Flask
         Thread {
@@ -130,13 +142,17 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
 
+    override fun onPause() {
+        super.onPause()
+        magnetometer?.let { sensorManager.unregisterListener(this, it) }
+    }
+
     override fun onResume() {
         super.onResume()
         magnetometer?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
         }
-        if (::webView.isInitialized) {
-            webView.reload()
-        }
+        // Do NOT reload — this would kill the live SSE stream and GPS WebSocket
+        // every time the user alt-tabs, resetting the waterfall and reconnection state.
     }
 }
