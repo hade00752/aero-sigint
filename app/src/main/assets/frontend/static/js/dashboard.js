@@ -691,8 +691,14 @@ function spawnBokeh(){
 function connectSSE(){
   try{
     const es=new EventSource('/stream');
-    es.onmessage=e=>{try{ingest(JSON.parse(e.data));}catch{}};
-    es.onerror=()=>{es.close();setTimeout(connectSSE,3000);};
+    let sseReceived=false;
+    // NanoHTTPD buffers chunked responses — if no event arrives in 4s, fall back to polling.
+    const fallback=setTimeout(()=>{if(!sseReceived){es.close();startPolling();}},4000);
+    es.onmessage=e=>{
+      if(!sseReceived){sseReceived=true;clearTimeout(fallback);}
+      try{ingest(JSON.parse(e.data));}catch{}
+    };
+    es.onerror=()=>{clearTimeout(fallback);es.close();startPolling();};
   }catch{startPolling();}
 }
 async function startPolling(){
