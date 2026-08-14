@@ -271,6 +271,11 @@ class SpoofScorer(private val filesDir: File) {
 
     fun check(location: Location?): Pair<Double, Int> {
         if (location == null) return Pair(0.0, 0)
+        // Accuracy > 100m means the phone is using cell/WiFi fallback or has a
+        // very poor GPS fix (typical indoors). Position can jump 50-300m randomly
+        // as towers change — that's noise, not spoofing. Skip the check entirely
+        // so we neither score nor corrupt the baseline with bad positions.
+        if (location.accuracy > 100f) return Pair(0.0, 0)
         val lat = location.latitude
         val lon = location.longitude
         val jump = lastCoord?.let { (la, lo) -> haversine(la, lo, lat, lon) } ?: 0.0

@@ -313,11 +313,17 @@ class SigintService : Service(), SensorEventListener {
                 // ④ Spoofing — coordinate teleportation
                 val loc = latestLocation
                 val (jump, baseSpoofScore) = spoofScorer.check(loc)
-                // Accelerometer contradiction: GPS claims movement but device is
-                // physically stationary → strong spoof indicator, works indoors
+                // Accelerometer contradiction: GPS claims large movement but device is
+                // physically stationary → strong spoof indicator.
+                // Guard: only apply when GPS accuracy is good (< 50m). Indoors,
+                // accuracy degrades to 100-300m and positions jump randomly by
+                // 50-300m as the phone switches cell towers — that's noise, not
+                // spoofing. Minimum jump raised to 200m: real teleportation spoofing
+                // moves you hundreds of metres; urban GPS drift stays well under that.
                 val accelVar = latestAccelVariance
+                val gpsAccurate = (loc?.accuracy ?: Float.MAX_VALUE) < 50f
                 val deviceStationary = accelVar in 0.001..0.15
-                val spoofScore = if (deviceStationary && jump in 50.0..4_999.0) {
+                val spoofScore = if (gpsAccurate && deviceStationary && jump in 200.0..4_999.0) {
                     maxOf(baseSpoofScore, min(75, 35 + (jump / 100).toInt()))
                 } else baseSpoofScore
 
