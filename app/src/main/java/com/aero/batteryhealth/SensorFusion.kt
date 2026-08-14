@@ -148,6 +148,10 @@ class RadioScorer(filesDir: File) {
     private val baselineSamples = mutableListOf<Double>()
     private var prevCn0: Double? = null
     private val BASELINE_SAMPLES = 8
+    // Suppresses scoring until the local baseline is established from real readings.
+    // The hardcoded default (38 dBHz) is open-sky quality — it produces false positives
+    // in urban environments (London, etc.) where normal C/N₀ is 28-35 dBHz.
+    private var baselineReady = false
 
     // AGC baseline — tracks normal receiver gain; drops when antenna is flooded
     private var agcBaseline: Double? = null
@@ -160,6 +164,7 @@ class RadioScorer(filesDir: File) {
             val d = JSONObject(baselineFile.readText())
             cn0Baseline = d.getDouble("cn0_baseline")
             agcBaseline = d.optDouble("agc_baseline").takeIf { !it.isNaN() }
+            baselineReady = true  // saved baseline is already calibrated
         } catch (_: Exception) {}
     }
 
@@ -179,17 +184,28 @@ class RadioScorer(filesDir: File) {
             if (baselineSamples.size >= BASELINE_SAMPLES) {
                 cn0Baseline = baselineSamples.average()
                 baselineSamples.clear()
+                baselineReady = true
                 saveBaseline()
             }
         }
+
+        // Hold scoring at 0 until enough real readings have calibrated the baseline.
+        // Prevents false positives from the default 38 dBHz open-sky assumption firing
+        // in urban or indoor environments.
+        if (!baselineReady) { prevCn0 = cn0; return 0 }
 
         var s = 0
         val drop = cn0Baseline - cn0
         if (drop > 6.0) s += min(60, (drop * 5).toInt())
 
         prevCn0?.let { prev ->
+            // Require a large sudden drop AND the reading to be well below baseline
+            // before adding onset score — urban multipath can cause 15 dBHz swings
+            // as the phone moves around a building corner.
             val onset = prev - cn0
-            if (onset > 15.0) s = min(100, s + (onset * 2).toInt())
+            if (onset > 20.0 && cn0 < (cn0Baseline - 10.0)) {
+                s = min(100, s + (onset * 2).toInt())
+            }
         }
         prevCn0 = cn0
         return min(100, s)

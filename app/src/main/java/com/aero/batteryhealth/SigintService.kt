@@ -294,7 +294,11 @@ class SigintService : Service(), SensorEventListener {
                 val pollMs = if (currentLowPower) 10_000L else 2_000L
 
                 // ① RF jamming — C/N₀ score
-                val gnssStale  = System.currentTimeMillis() - lastGnssUpdateMs > 10_000L
+                // 60s stale threshold: urban environments (buildings, tunnels) can
+                // interrupt GPS for 10-30s without any jamming. 60s means a real
+                // blanket jammer (which kills GPS instantly and completely) is still
+                // detected quickly, while brief city-canyon dropouts are ignored.
+                val gnssStale  = System.currentTimeMillis() - lastGnssUpdateMs > 60_000L
                 val cn0        = if (gnssStale) null else latestCn0
                 val satCount   = if (gnssStale) null else latestSatCount
                 val jamScore   = cn0?.let { radioScorer.score(it, satCount) } ?: 0
