@@ -1,7 +1,10 @@
-v0.5.0 — Adaptive baseline, 4-language support, in-app alarm mute, self-diagnostic
+v0.5.0 - Kotlin rewrite + expanded sensor coverage
 
-• Adaptive local baseline: learns normal jamming level for your location so alerts are meaningful in high-EW environments
-• SILENCE button: mute alarm sound for 5 minutes without dismissing the warning
-• Languages: Arabic, Farsi/Persian (RTL), Ukrainian added alongside English
-• Self-diagnostic panel: checks service, battery, GPS lock, and permissions
-• Alarm now fires independently of the Python layer if Android kills the service
+- Fully FOSS: Chaquopy removed, F-Droid compliant
+- AGC (Android 14+): earliest jamming indicator available
+- GNSS silence: lock loss after active fix scores 90
+- Accelerometer: stationary phone + GPS jump = spoofing
+- Cell signal: LTE drop corroborates GPS jamming
+- Adaptive baseline: learns normal EW level for location
+- Watchdog: service survives OS kill and device reboot
+- SILENCE button, Arabic/Farsi/Ukrainian/English

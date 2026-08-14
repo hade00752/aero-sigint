@@ -1,1 +1,1 @@
-Passive GPS jamming and spoofing early warning. No internet. No data sent anywhere.
+Passive GPS jamming and spoofing detector. No internet. Zero data collected.
