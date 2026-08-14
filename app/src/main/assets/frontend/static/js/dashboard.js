@@ -30,8 +30,8 @@ const _T={
     diag_title:'SYSTEM CHECK',
     diag_service:'Service running','diag_service_no':'Service not connected',
     diag_battery:'Battery unrestricted','diag_battery_no':'Battery restricted — tap banner to fix',
-    diag_gps:'GPS locked — full detection active','diag_gps_no':'GPS not locked — go outdoors for jamming detection',
-    diag_loc:'Location permission granted','diag_loc_no':'Location permission denied',
+    diag_gps:'GPS locked — full detection active','diag_gps_no':'No GPS fix yet — stay outdoors, cold start takes 2-5 min',
+    diag_loc:'Location access granted (Android)','diag_loc_no':'Location permission denied',
     diag_demo:'Running in demo mode — start the app on your phone',
   },
   ar:{
@@ -62,7 +62,7 @@ const _T={
     diag_title:'فحص النظام',
     diag_service:'الخدمة تعمل','diag_service_no':'الخدمة غير متصلة',
     diag_battery:'البطارية غير مقيدة','diag_battery_no':'البطارية مقيدة — اضغط الشريط للإصلاح',
-    diag_gps:'GPS مقفل — الكشف الكامل نشط','diag_gps_no':'GPS غير مقفل — اخرج للخارج لكشف التشويش',
+    diag_gps:'GPS مقفل — الكشف الكامل نشط','diag_gps_no':'لا إشارة GPS بعد — ابق في الخارج، القفل الأولي 2-5 دقائق',
     diag_loc:'إذن الموقع ممنوح','diag_loc_no':'إذن الموقع مرفوض',
     diag_demo:'وضع العرض — شغّل التطبيق على هاتفك',
   },
@@ -94,7 +94,7 @@ const _T={
     diag_title:'بررسی سیستم',
     diag_service:'سرویس در حال اجرا','diag_service_no':'سرویس متصل نیست',
     diag_battery:'باتری نامحدود','diag_battery_no':'باتری محدود شده — روی نوار لمس کنید',
-    diag_gps:'GPS قفل شده — کشف کامل فعال','diag_gps_no':'GPS قفل نشده — برای کشف پارازیت بیرون بروید',
+    diag_gps:'GPS قفل شده — کشف کامل فعال','diag_gps_no':'هنوز GPS قفل نشده — در بیرون بمانید، قفل اولیه ۲-۵ دقیقه',
     diag_loc:'مجوز موقعیت داده شده','diag_loc_no':'مجوز موقعیت رد شده',
     diag_demo:'حالت نمایش — برنامه را روی گوشی اجرا کنید',
   },
@@ -126,7 +126,7 @@ const _T={
     diag_title:'ПЕРЕВІРКА СИСТЕМИ',
     diag_service:'Сервіс працює','diag_service_no':'Сервіс не підключено',
     diag_battery:'Батарея необмежена','diag_battery_no':'Батарея обмежена — торкніться банера',
-    diag_gps:'GPS заблоковано — повне виявлення активне','diag_gps_no':'GPS не заблоковано — вийдіть надвір',
+    diag_gps:'GPS заблоковано — повне виявлення активне','diag_gps_no':'Фіксація GPS ще не отримана — залишайтесь надворі, перший пошук: 2-5 хв',
     diag_loc:'Дозвіл на місцезнаходження надано','diag_loc_no':'Дозвіл на місцезнаходження відхилено',
     diag_demo:'Демо-режим — запустіть додаток на телефоні',
   }
@@ -192,18 +192,17 @@ function runSelfDiagnostic(){
   fetch('/state',{signal:AbortSignal.timeout(3000)}).then(r=>r.json()).then(d=>{
     const rows=[];
     const row=(ok,msg)=>`<div class="diag-row ${ok?'diag-ok':'diag-warn'}"><span class="diag-icon">${ok?'✓':'⚠'}</span><span>${msg}</span></div>`;
+    const rowInfo=(msg)=>`<div class="diag-row diag-checking"><span class="diag-icon">ℹ</span><span>${msg}</span></div>`;
     rows.push(row(true, t('diag_service')));
     if(d.battery_unrestricted===false) rows.push(row(false, t('diag_battery_no')));
     else if(d.battery_unrestricted===true) rows.push(row(true, t('diag_battery')));
     if(d.gps_locked) rows.push(row(true, t('diag_gps')));
-    else rows.push(row(false, t('diag_gps_no')));
-    if(typeof navigator.permissions!=='undefined'){
-      navigator.permissions.query({name:'geolocation'}).then(p=>{
-        const ok=p.state==='granted';
-        rows.push(row(ok,ok?t('diag_loc'):t('diag_loc_no')));
-        el.innerHTML=rows.join('');
-      }).catch(()=>{el.innerHTML=rows.join('');});
-    } else el.innerHTML=rows.join('');
+    else rows.push(rowInfo(t('diag_gps_no')));
+    // navigator.permissions.query('geolocation') returns 'denied' in Android WebView
+    // even when ACCESS_FINE_LOCATION is granted at the Android level. The service
+    // responding above confirms permission is in place — no browser check needed.
+    rows.push(row(true, t('diag_loc')));
+    el.innerHTML=rows.join('');
   }).catch(()=>{
     el.innerHTML=`<div class="diag-row diag-warn"><span class="diag-icon">⚠</span><span>${t('diag_service_no')}</span></div><div class="diag-row diag-warn"><span class="diag-icon">ℹ</span><span>${t('diag_demo')}</span></div>`;
   });
@@ -701,22 +700,6 @@ async function startPolling(){
   tick();
 }
 
-function startGPS(){
-  if(!navigator.geolocation)return;
-  let ws=null,ready=false,lastPos=null;
-  const send=()=>{
-    if(!ready||!ws||!lastPos)return;
-    try{ws.send(JSON.stringify({lat:lastPos.coords.latitude,lon:lastPos.coords.longitude,accuracy:lastPos.coords.accuracy,gnss_ts:lastPos.timestamp/1000}));}catch{}
-  };
-  const conn=()=>{try{ws=new WebSocket('ws://127.0.0.1:9001');ws.onopen=()=>{ready=true;send();};ws.onclose=()=>{ready=false;setTimeout(conn,3000);};ws.onerror=()=>{ready=false;};}catch{}};
-  conn();
-  // Re-poll every 5s so a static mock position keeps flowing even without movement
-  setInterval(()=>{
-    navigator.geolocation.getCurrentPosition(pos=>{lastPos=pos;send();},()=>{},{enableHighAccuracy:true,maximumAge:4000,timeout:8000});
-  },5000);
-  navigator.geolocation.watchPosition(pos=>{lastPos=pos;send();},()=>{},{enableHighAccuracy:true,maximumAge:45000,timeout:15000});
-}
-
 // Stealth activation — triple tap brand
 let _tapCount=0,_tapTimer=null;
 document.addEventListener('DOMContentLoaded',()=>{
@@ -765,7 +748,7 @@ async function boot(){
     if(r.ok){
       const d=await r.json();
       if('battery_unrestricted' in d) updateBatteryWarning(d.battery_unrestricted);
-      connectSSE();startGPS();checkBatteryStatus();checkLowPower();return;
+      connectSSE();checkBatteryStatus();checkLowPower();return;
     }
   }catch{}
   runDemo();

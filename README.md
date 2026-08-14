@@ -41,8 +41,6 @@ Switch between all four from the top-right button. Arabic and Farsi use right-to
 4. Grant **Location** permission when prompted
 5. Tap **Open** — monitoring starts immediately
 
-Works with APKCombo installer or any sideload manager as an alternative.
-
 **Requirements:** Android 8.0+ · No root required
 
 ---
@@ -51,25 +49,39 @@ Works with APKCombo installer or any sideload manager as an alternative.
 
 After installing, do these once:
 
-1. **Unrestrict battery** — tap the orange banner if it appears, or go to
+1. **Grant location permission** — tap **Allow** when the app asks. Without this, no GPS or jamming detection is possible.
+
+2. **Unrestrict battery** — tap the orange banner if it appears, or go to
    `Settings → Battery → Battery optimisation → Aero SIGINT → Unrestricted`
-   Without this, Android will kill the monitoring service when the screen turns off.
+   Without this, Android kills the monitoring service when the screen turns off.
 
-2. **Step outside for 2 minutes** — the app needs a GPS lock to calibrate. This only needs to happen once.
+3. **Go outside and wait for GPS lock** — GPS requires open sky. The first satellite lock after a fresh install can take **2-5 minutes**. While acquiring, the Guide tab shows "No GPS fix yet — stay outdoors" — this is normal, not an error. Once locked, full jamming detection activates.
 
-3. **Test the alarm** — tap **TEST ALARM** to confirm sound and vibration work before you need them.
+4. **Test the alarm** — tap **TEST ALARM** to confirm sound and vibration work before you need them.
 
-4. **Let the baseline calibrate** — in high-interference areas, leave the app running for 10 minutes. It learns what is normal for your location so it can tell you when something changes.
+5. **Let the baseline calibrate** — in high-interference areas, leave the app running for 10 minutes. It learns what is normal for your location so it can tell you when something changes.
 
 ---
 
 ## Key Features
 
 **Adaptive Local Baseline**
-In conflict zones where jamming is constant, a fixed alarm threshold becomes meaningless — the alarm would sound all day and people stop responding. Aero·SIGINT learns the local normal level of interference for your specific location and alerts you when the level escalates significantly above it. The dashboard shows you `+18% above local normal` rather than just a raw score.
+In conflict zones where jamming is constant, a fixed alarm threshold becomes meaningless. Aero·SIGINT learns the local normal level of interference for your specific location and alerts you when the level escalates significantly above it.
+
+**AGC Jamming Detection** *(Android 14+ only)*
+Reads the GPS receiver's Automatic Gain Control. When a jammer floods the antenna, the receiver lowers gain — Aero·SIGINT detects this as the earliest possible jamming indicator, before satellite count drops.
+
+**GNSS Silence Detection**
+If the app had a working satellite lock and it suddenly goes dark (>10 seconds of no measurements), the jam score jumps to 90 immediately — jamming often kills all satellite contact at once.
+
+**Accelerometer Contradiction Check**
+If the phone is stationary (accelerometer shows no movement) but GPS suddenly jumps hundreds of metres, that contradiction strongly indicates spoofing rather than genuine movement.
+
+**Cell Signal Corroboration**
+Sudden LTE signal drop combined with GPS anomalies raises the confidence score — jammers often degrade cellular alongside GPS.
 
 **Alarm That Works When You Need It**
-The alarm fires even with the screen off, even if the app is in the background, and even if the Python detection layer crashes — the Android service layer monitors sensors independently and sounds the alarm directly.
+The alarm fires even with the screen off, even if the app is in the background. A watchdog timer restarts the service if Android kills it, and it auto-starts on device reboot.
 
 **SILENCE Button**
 When the alarm fires, a SILENCE button appears on screen. Tap it to mute the sound for 5 minutes without dismissing the warning. The alert stays visible. Sound re-arms automatically if the threat continues.
@@ -81,10 +93,33 @@ Triple-tap the title to switch to a fake "Battery Health Optimizer" screen. Trip
 Every alert event is logged locally with a timestamp. The Pattern tab shows a 24-hour heatmap of activity — useful for identifying recurring jamming windows.
 
 **System Diagnostic**
-The Guide tab runs a live system check: service running, battery unrestricted, GPS locked, location permission granted. Shows any issues at a glance.
+The Guide tab runs a live system check: service running, battery unrestricted, GPS locked, location granted. Shows any issues at a glance.
 
 **No Internet Required**
 After installation, the app works completely offline. All detection happens on your phone.
+
+---
+
+## Troubleshooting
+
+**Dashboard is blank / all zeros**
+
+This is normal for the first 2-5 minutes after installation or after a reboot. The GPS needs time to acquire satellite lock. Steps to resolve:
+
+1. Go outside with clear sky view
+2. Wait up to 5 minutes — GPS cold start takes time
+3. Check the Guide tab — it will show "No GPS fix yet" (blue info, not an error) while acquiring
+4. Once the GPS locks, all sensor data appears immediately
+
+If after 5 minutes outdoors the Guide tab still shows no service: go to `Settings → Apps → Aero SIGINT → Permissions` and confirm Location is set to "Allow all the time" or "Allow while using".
+
+**"Location restricted" shown in Guide tab**
+
+This was a known bug in versions before v0.5.1 — the diagnostic mistakenly used a browser geolocation API that always reports "denied" inside Android WebView, regardless of your actual permission setting. Update to the latest version to fix this.
+
+**Alarm sounding in a known-safe area**
+
+Tap the baseline area in the dashboard to reset the local baseline. High-jamming environments need ~10 minutes of ambient data before the adaptive baseline settles.
 
 ---
 
@@ -92,6 +127,7 @@ After installation, the app works completely offline. All detection happens on y
 
 - **Does not predict strikes.** It detects that jamming or spoofing started. It cannot know what follows.
 - **Indoors, jamming detection is reduced.** GPS requires open sky. A phone indoors with no satellite lock cannot detect jamming through satellite signal loss.
+- **AGC detection requires Android 14+.** On older Android, jamming detection still works through C/N₀ and satellite count, but AGC is not available.
 - **Baseline takes 10 minutes to calibrate** after first install or after moving to a new location.
 - **Cannot work with a dead battery.** In areas without reliable electricity, keep the phone charged.
 - **Cannot replace official emergency guidance.** If authorities issue evacuation orders, follow them regardless of what this app shows.
@@ -114,21 +150,6 @@ Dashboard available at `http://sigint.local:8080` from any device on the same ne
 
 ---
 
-## Running from Source (Termux / Desktop)
-
-```bash
-pkg install python git -y
-git clone https://github.com/hade00752/aero-sigint
-cd aero-sigint
-pip install flask ntplib
-SIGINT_ENV=android python3 -m backend.bridge.server &
-SIGINT_ENV=android python3 -m backend.sensors.daemon
-```
-
-Open `http://127.0.0.1:8080` in any browser.
-
----
-
 ## Privacy
 
 The app collects nothing and sends nothing.
@@ -136,16 +157,15 @@ The app collects nothing and sends nothing.
 - All processing is on-device
 - Event logs stay on local phone storage only
 - No accounts, no registration, no analytics
-- The only outbound connection is to NTP servers for time integrity checking (optional, can be disabled)
+- No outbound network connections of any kind
 
 ---
 
 ## Roadmap
 
 - Indoor jamming detection without GPS lock
-- Service watchdog to restart automatically if Android kills the background service
 - Burmese, Amharic, Kurdish, and Pashto translations
-- F-Droid publication (open source app store — no Google account required)
+- F-Droid publication — submitted, under review
 - Opt-in anonymised baseline sharing so users in a region start with a pre-calibrated baseline
 - Pi mesh networking — multiple nodes cross-validating events
 

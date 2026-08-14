@@ -59,6 +59,7 @@ class SigintService : Service(), SensorEventListener {
     @Volatile private var latestAgc: Double? = null
     @Volatile private var lastGnssUpdateMs: Long = 0L
     @Volatile private var gnssEverActive: Boolean = false
+    @Volatile private var gnssRegistered: Boolean = false
 
     // Accelerometer variance — written by onSensorChanged, read by fusion loop
     @Volatile private var latestAccelVariance: Double = 0.0
@@ -126,7 +127,16 @@ class SigintService : Service(), SensorEventListener {
         WatchdogReceiver.scheduleNext(this)
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Retry GNSS registration if the first attempt failed (e.g. service started
+        // before the user granted location permission on first install).
+        if (!gnssRegistered &&
+            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            startGnssMeasurements()
+        }
+        return START_STICKY
+    }
 
     override fun onDestroy() {
         super.onDestroy()
@@ -224,6 +234,7 @@ class SigintService : Service(), SensorEventListener {
             gnssCallback = cb
             lm.registerGnssMeasurementsCallback(cb, Handler(Looper.getMainLooper()))
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 0f, locationListener)
+            gnssRegistered = true  // only reached if both calls above succeed
         } catch (e: Exception) {
             e.printStackTrace()
         }
